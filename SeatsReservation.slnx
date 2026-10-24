@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Common/">
+    <Project Path="src/Common/SeatsReservation.Contracts/SeatsReservation.Contracts.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/">
+    <Project Path="src/Services/AuthServer.Api/AuthServer.Api.csproj" />
+    <Project Path="src/Services/Availability.Api/Availability.Api.csproj" />
+    <Project Path="src/Services/Booking.Api/Booking.Api.csproj" />
+    <Project Path="src/Services/Notifications.Worker/Notifications.Worker.csproj" />
+    <Project Path="src/Services/Payment.Grpc/Payment.Grpc.csproj" />
+  </Folder>
+</Solution>

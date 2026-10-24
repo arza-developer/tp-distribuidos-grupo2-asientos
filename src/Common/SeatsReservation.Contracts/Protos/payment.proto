@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+option csharp_namespace = "SeatsReservation.Contracts.Grpc";
+
+package payment;
+
+service PaymentApi {
+  rpc ProcessPayment (PaymentRequest) returns (PaymentResponse);
+}
+
+message PaymentRequest {
+  string reservation_id = 1;
+  string user_id = 2;
+  double amount = 3;
+  string correlation_id = 4;
+}
+
+message PaymentResponse {
+  bool is_success = 1;
+  string transaction_id = 2;
+  string rejection_reason = 3;
+}
+
