@@ -1,25 +1,24 @@
+using SeatsReservation.Contracts.Events;
+using SeatsReservation.Contracts.Messaging;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Registramos el publisher mock para poder trabajar offline sin broker real
+builder.Services.AddSingleton<IMessagePublisher, FakeLoggingPublisher>();
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
