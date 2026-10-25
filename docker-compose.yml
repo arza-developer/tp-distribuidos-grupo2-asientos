@@ -1,0 +1,65 @@
+services:
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    container_name: seats-azurite
+    ports:
+      - "10000:10000"
+      - "10001:10001"
+      - "10002:10002"
+
+  auth-server:
+    build:
+      context: .
+      args:
+        SERVICE_NAME: AuthServer.Api
+    container_name: seats-auth-server
+    ports:
+      - "5104:5104"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=5104
+
+  availability-api:
+    build:
+      context: .
+      args:
+        SERVICE_NAME: Availability.Api
+    container_name: seats-availability-api
+    ports:
+      - "5101:5101"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=5101
+
+  booking-api:
+    build:
+      context: .
+      args:
+        SERVICE_NAME: Booking.Api
+    container_name: seats-booking-api
+    ports:
+      - "5102:5102"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=5102
+
+  payment-grpc:
+    build:
+      context: .
+      args:
+        SERVICE_NAME: Payment.Grpc
+    container_name: seats-payment-grpc
+    ports:
+      - "5103:5103"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=5103
+
+  notifications-worker:
+    build:
+      context: .
+      args:
+        SERVICE_NAME: Notifications.Worker
+    container_name: seats-notifications-worker
+    environment:
+      - DOTNET_ENVIRONMENT=Development

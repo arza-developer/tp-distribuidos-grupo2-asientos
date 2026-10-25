@@ -1,0 +1,60 @@
+@authUrl = http://localhost:5104
+@availabilityUrl = http://localhost:5101
+@bookingUrl = http://localhost:5102
+@eventId = 3fa85f64-5717-4562-b3fc-2c963f66afa6
+@userId = 7bb85f64-1111-2222-3333-2c963f66af99
+
+### ==================================================================
+### 1. PASO 2 Consigna: Obtener Token JWT en Auth Server
+### ==================================================================
+# @name login
+POST {{authUrl}}/connect/token
+Content-Type: application/json
+
+{
+  "clientId": "frontend-user-client",
+  "role": "Client"
+}
+
+### Guardamos el token en una variable
+@authToken = {{login.access_token}}
+
+
+### ==================================================================
+### 2. PASO 1 Consigna: Consulta pública de catálogo de asientos
+### ==================================================================
+GET {{availabilityUrl}}/api/seats
+Accept: application/json
+
+
+### ==================================================================
+### 3. PASO 3 Consigna: Solicitud de Reserva Asíncrona (202 Accepted)
+### ==================================================================
+# @name createReservation
+POST {{availabilityUrl}}/api/reservations
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "eventId": "{{eventId}}",
+  "seatNumber": "A-1",
+  "userId": "{{userId}}",
+  "price": 15000.0
+}
+
+### Extraemos el ID de la reserva creada
+@reservationId = {{createReservation.reservationId}}
+
+
+### ==================================================================
+### 4. PASO 7 Consigna: Polling de Estado a través de Availability
+### ==================================================================
+GET {{availabilityUrl}}/api/reservations/{{reservationId}}
+Accept: application/json
+
+
+### ==================================================================
+### 5. PASO 7 Consigna: Verificación interna directa en Booking
+### ==================================================================
+GET {{bookingUrl}}/api/bookings/{{reservationId}}
+Accept: application/json
