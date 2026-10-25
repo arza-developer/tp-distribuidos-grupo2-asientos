@@ -1,0 +1,25 @@
+name: Build and Verify
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore ./SeatsReservation.slnx
+
+    - name: Build Solution
+      run: dotnet build ./SeatsReservation.slnx -c Release --no-restore
