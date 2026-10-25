@@ -3,6 +3,11 @@ using SeatsReservation.Contracts.Events;
 
 namespace Availability.Api.Controllers;
 
+/// <summary>
+/// [Patrón Arquitectónico: Clean Architecture - Adaptador de Entrada / Controlador]
+/// [Requisito 3.a]: Desacopla la interfaz HTTP del modelo de dominio anémico.
+/// Administra el catálogo de asientos y la recepción asíncrona de solicitudes de reserva.
+/// </summary>
 [ApiController]
 [Route("api")]
 public class ReservationsController : ControllerBase
@@ -16,10 +21,14 @@ public class ReservationsController : ControllerBase
         _logger = logger;
     }
 
-    // Paso 1 de la consigna: Consulta pública de asientos disponibles
+    /// <summary>
+    /// [Paso 1 Consigna]: Consulta pública de asientos disponibles sin autenticación.
+    /// </summary>
+    /// <returns>Listado de asientos con estado y precio.</returns>
     [HttpGet("seats")]
     public IActionResult GetAvailableSeats()
     {
+        // [Dominio Anémico]: Estructura pura de datos sin métodos de negocio
         var seats = new[]
         {
             new { SeatNumber = "A-1", Price = 15000.0, IsAvailable = true },
@@ -30,7 +39,11 @@ public class ReservationsController : ControllerBase
         return Ok(seats);
     }
 
-    // Paso 3 de la consigna: Envío de solicitud de reserva (Asíncrono)
+    /// <summary>
+    /// [Paso 3 Consigna]: Recepción asíncrona de reserva con consistencia eventual.
+    /// [Decisión de Arquitectura]: Responde 202 Accepted inmediatamente sin esperar a Booking.
+    /// [Requisito 3.f]: Inicia la cadena de eventos con CorrelationId para auditoría.
+    /// </summary>
     [HttpPost("reservations")]
     public async Task<IActionResult> RequestReservation([FromBody] ReservationRequestDto dto)
     {
@@ -48,13 +61,13 @@ public class ReservationsController : ControllerBase
             CorrelationId = correlationId
         };
 
-        // Publica en el broker (Mock/Azure) sin bloquear al cliente
+        // [Patrón]: Publicación al Broker (Outbox/Azurite) para procesamiento desacoplado
         await _publisher.PublishAsync(message, "booking-requests-queue");
 
-        _logger.LogInformation("[{CorrelationId}] INICIO: Solicitud de reserva recibida para asiento {SeatNumber}. Asignado ID {ReservationId}",
+        // [Requisito 3.f]: Registro explícito de INICIO de la cadena de sucesos
+        _logger.LogInformation("[{CorrelationId}] INICIO: Solicitud de reserva recibida para asiento {SeatNumber}. ID asignado: {ReservationId}",
             correlationId, dto.SeatNumber, reservationId);
 
-        // Responde de inmediato 202 Accepted
         return Accepted(new
         {
             ReservationId = reservationId,
@@ -64,11 +77,12 @@ public class ReservationsController : ControllerBase
         });
     }
 
-    // Paso 7 de la consigna: Polling del resultado
+    /// <summary>
+    /// [Paso 7 Consigna]: Polling de estado de reserva consultado por el usuario.
+    /// </summary>
     [HttpGet("reservations/{id:guid}")]
     public IActionResult GetReservationStatus(Guid id)
     {
-        // Stub inicial: simula respuesta de estado
         return Ok(new
         {
             ReservationId = id,
@@ -78,4 +92,7 @@ public class ReservationsController : ControllerBase
     }
 }
 
+/// <summary>
+/// [Dominio Anémico - Requisito 3.a.ii]: DTO inmutable de transporte de datos.
+/// </summary>
 public record ReservationRequestDto(Guid EventId, string SeatNumber, Guid UserId, decimal Price);

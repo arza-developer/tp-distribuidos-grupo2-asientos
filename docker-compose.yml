@@ -1,12 +1,19 @@
+# [Decisión de Arquitectura]: Orquestación multicontenedor para Sistema Distribuido (Requisito 3.d)
+# Topología: Microservicios desacoplados con bases de datos y runtimes independientes.
 services:
+
+  # 1. Emulador local de colas Azure Storage Queues (LocalStack de Azure / Sin costo en nube)
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite:latest
     container_name: seats-azurite
     ports:
-      - "10000:10000"
-      - "10001:10001"
-      - "10002:10002"
+      - "10000:10000" # Blob Service
+      - "10001:10001" # Queue Service (Broker asíncrono para Eventual Consistency)
+      - "10002:10002" # Table Service
+    cpus: 1.0
+    mem_limit: 256m
 
+  # 2. Servidor de Identidad OAuth2 / Tokens JWT (Requisito 3.e)
   auth-server:
     build:
       context: .
@@ -18,7 +25,10 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=5104
+    cpus: 1.0
+    mem_limit: 256m
 
+  # 3. Fachada Pública de Catálogo y Reservas (Clean Architecture - Requisito 3.a)
   availability-api:
     build:
       context: .
@@ -30,19 +40,27 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=5101
+    # [Decisión]: 2.0 CPUs para garantizar paralelismo real en el ThreadPool bajo concurrencia
+    cpus: 2.0
+    mem_limit: 512m
 
+  # 4. Procesamiento Transaccional y Concurrencia de Asientos (N-Layer - Requisito 3.b y Paso 4)
   booking-api:
     build:
       context: .
       args:
         SERVICE_NAME: Booking.Api
-    container_name: seats-booking-api
+    # Rango de puertos dinámico: permite escalar réplicas (--scale booking-api=2) sin colisión de puertos
     ports:
-      - "5102:5102"
+      - "5102-5110:5102"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=5102
+    # [Decisión]: 2.0 CPUs para simular condiciones de carrera en acceso concurrente a asientos
+    cpus: 2.0
+    mem_limit: 512m
 
+  # 5. Pasarela Financiera gRPC (Contrato estricto Protobuf sobre HTTP/2 - Requisito 3.c)
   payment-grpc:
     build:
       context: .
@@ -54,7 +72,10 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=5103
+    cpus: 1.0
+    mem_limit: 256m
 
+  # 6. Consumidor de Notificaciones Asíncronas (Requisito 3.h)
   notifications-worker:
     build:
       context: .
@@ -63,3 +84,5 @@ services:
     container_name: seats-notifications-worker
     environment:
       - DOTNET_ENVIRONMENT=Development
+    cpus: 1.0
+    mem_limit: 256m

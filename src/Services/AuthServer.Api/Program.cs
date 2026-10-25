@@ -6,14 +6,19 @@ using Microsoft.IdentityModel.Tokens;
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
+// [Decisión de Seguridad]: Clave simétrica compartida (HS256) para validación local de ultra-baja latencia
 const string SecretKey = "SeatsReservation-Super-Secret-Key-University-Project-2026!";
 
-// Paso 2 y Requisito 3.e: Emisión de tokens de autenticación
+/// <summary>
+/// [Paso 2 y Requisito 3.e]: Servidor de Autorización OAuth2 / OpenID Connect.
+/// Emite tokens JWT tanto para usuarios finales como para comunicación servicio a servicio (M2M).
+/// </summary>
 app.MapPost("/connect/token", (TokenRequestDto dto) =>
 {
     var tokenHandler = new JwtSecurityTokenHandler();
     var key = Encoding.UTF8.GetBytes(SecretKey);
 
+    // [Claims Estándar RFC 7519]: Identidad del sujeto, identificador único y roles
     var claims = new List<Claim>
     {
         new(JwtRegisteredClaimNames.Sub, dto.ClientId ?? "anonymous-user"),
