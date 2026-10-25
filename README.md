@@ -2,58 +2,44 @@
 
 Trabajo Práctico Integrador de Arquitectura de Software y Sistemas Distribuidos.
 
-## 📌 Topología de Red y Puertos Asignados
+## 📌 Asignación de Tareas y Ramas de Trabajo
 
-| Servicio                 | Tipo                              | Puerto | Responsabilidad Principal                                                       |
-|:-------------------------|:----------------------------------|:-------|:--------------------------------------------------------------------------------|
-| **Availability.Api**     | REST Web API (Clean Architecture) | `5101` | Consulta de asientos y recepción asíncrona de reservas (`202 Accepted`).        |
-| **Booking.Api**          | REST Web API (N-Layer)            | `5102` | Núcleo de reservas, control de concurrencia y máquina de estados.               |
-| **Payment.Grpc**         | gRPC Service (N-Layer)            | `5103` | Pasarela de pagos por contrato binario Protobuf.                                |
-| **AuthServer.Api**       | Minimal Web API                   | `5104` | Emisión de tokens JWT para usuarios y comunicación M2M (`POST /connect/token`). |
-| **Notifications.Worker** | Background Worker                 | N/A    | Consumidor de eventos de reservas confirmadas.                                  |
+Cada integrante trabaja en su rama asignada siguiendo su especificación técnica estandarizada:
+
+|   #    | Rama Git                               | Módulo Principal                     | Especificación Detallada                                        |
+|:------:|:---------------------------------------|:-------------------------------------|:----------------------------------------------------------------|
+| **01** | `feature/01-availability-clean-arch`   | `src/Services/Availability.Api/`     | [Ver Tarea 01](docs/tasks/TASK_01_AVAILABILITY_CLEAN_ARCH.md)   |
+| **02** | `feature/02-booking-core-concurrency`  | `src/Services/Booking.Api/`          | [Ver Tarea 02](docs/tasks/TASK_02_BOOKING_CORE_CONCURRENCY.md)  |
+| **03** | `feature/03-booking-worker-expiration` | `src/Services/Booking.Api/`          | [Ver Tarea 03](docs/tasks/TASK_03_BOOKING_WORKER_EXPIRATION.md) |
+| **04** | `feature/04-payment-grpc-service`      | `src/Services/Payment.Grpc/`         | [Ver Tarea 04](docs/tasks/TASK_04_PAYMENT_GRPC_SERVICE.md)      |
+| **05** | `feature/05-resilience-polly`          | `src/Services/Booking.Api/`          | [Ver Tarea 05](docs/tasks/TASK_05_RESILIENCE_POLLY.md)          |
+| **06** | `feature/06-auth-server-m2m`           | `src/Services/AuthServer.Api/`       | [Ver Tarea 06](docs/tasks/TASK_06_AUTH_SERVER_M2M.md)           |
+| **07** | `feature/07-notifications-tracing`     | `src/Services/Notifications.Worker/` | [Ver Tarea 07](docs/tasks/TASK_07_NOTIFICATIONS_TRACING.md)     |
+| **08** | `feature/08-e2e-testing-diagrams`      | `tests/` y `docs/`                   | [Ver Tarea 08](docs/tasks/TASK_08_E2E_TESTING_DIAGRAMS.md)      |
 
 ---
 
-## 🚀 Cómo compilar y ejecutar localmente
+## 🚀 Opciones de Ejecución del Proyecto
 
-### 1. Requisitos previos
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-
-### 2. Compilación del proyecto completo
+### Opción A: Desarrollo con Docker
 ```bash
-dotnet clean
-dotnet build
+docker compose up -d --build
 ```
 
-### 3. Ejecutar un servicio individual
-Para correr cualquiera de los microservicios de forma independiente:
+### Opción B: Desarrollo Local (Sin Docker)
 ```bash
-dotnet run --project src/Services/Availability.Api
-# o
 dotnet run --project src/Services/Booking.Api
-# o
-dotnet run --project src/Services/Payment.Grpc
-# o
-dotnet run --project src/Services/AuthServer.Api
 ```
 
 ---
 
-## 🌿 Flujo de Trabajo en Git (Para no pisarnos)
-
-1. Clonar el repositorio y posicionarse en la rama `develop`:
-   ```bash
-   git clone <URL_DEL_REPO>
-   git checkout develop
-   ```
-2. Crear tu rama de trabajo según el módulo asignado:
-   ```bash
-   git checkout -b feature/0X-nombre-del-modulo
-   ```
-3. Trabajar únicamente dentro de la carpeta asignada a tu módulo.
-4. Para integrar cambios, hacer Push de tu rama y abrir un **Pull Request hacia `develop`**.
+## 🧪 Pruebas de Contratos (Sin Postman)
+Ejecutar la suite completa desde terminal:
+```bash
+npx httpyac tests/api-tests.http --all
+```
 
 ---
 
-## 📚 Documentación de Entrega
+## 📚 Documentación Institucional
 - [Tabla de Interpretación de Componentes (Punto 1 y 3.h)](docs/tabla_componentes.md)
