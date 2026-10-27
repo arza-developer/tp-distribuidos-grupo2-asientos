@@ -17,7 +17,7 @@ Implementar la fachada pública de catálogo y recepción de reservas bajo arqui
 - `GET /api/reservations/{id}`: Proxy de consulta de estado hacia Booking.
 
 ## 4. Tareas Concretas
-1. Reestructurar el proyecto en capas internas: `Domain`, `UseCases`, `Adapters` e `Infrastructure`.
+1. Reestructurar el proyecto en capas: `Domain`, `UseCases`, `Adapters` e `Infrastructure`.
 2. Crear la entidad anémica `Seat` y el caso de uso `RequestReservationUseCase`.
 3. Inyectar `IMessagePublisher` en el caso de uso para desacoplar el broker.
 4. Registrar log con formato `[{CorrelationId}] INICIO: ...` (Requisito 3.f).
