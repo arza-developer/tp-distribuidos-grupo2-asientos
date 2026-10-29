@@ -1,0 +1,41 @@
+﻿using Booking.Api.Data;
+using Booking.Api.Models.Enums;
+using Booking.Api.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace Booking.Api.Repositories
+{
+    public class BookingRepository: IBookingRepository
+    {
+        private readonly BookingDbContext _context;
+        public BookingRepository(BookingDbContext context)
+        {
+            _context = context;
+        }
+
+        // Busca si ya se proceso una reserva para un requestId específico
+        public async Task<Reservation?> GetByRequestIdAsync (Guid requestId)
+        {
+            return await _context.Reservations
+                .AsNoTracking()
+                .SingleOrDefaultAsync(r => r.RequestId == requestId);
+        }
+        
+        //Busca reservas activas para un evento y asiento específico
+        public async Task<bool> HasActiveReservationAsync(Guid eventId, string seatNumber)
+        {
+            return await _context.Reservations.AnyAsync(r => 
+            r.EventId == eventId && 
+            r.SeatNumber == seatNumber && 
+            (r.Status == ReservationStatus.Retained || 
+            r.Status == ReservationStatus.Confirmed));
+        }
+
+        // Agrega una nueva reserva a la base de datos
+        public async Task AddReservationAsync(Reservation reservation, CancellationToken cancellationToken = default)
+        {
+            _context.Reservations.Add(reservation);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+}
