@@ -8,6 +8,10 @@ using SeatsReservation.Contracts.Events;
 
 namespace Booking.Api.Workers;
 
+// [Patron: Hosted Service / BackgroundService] Paso 4 de la consigna. El procesamiento corre en segundo
+// plano, desacoplado del flujo HTTP: Availability publica y responde de inmediato (consistencia eventual).
+// [Patron: Competing Consumers] Todas las replicas de Booking leen la misma suscripcion; Service Bus
+// entrega cada mensaje a una sola de ellas.
 public class BookingQueueConsumer : BackgroundService
 {
     private static readonly TimeSpan RetentionTime = TimeSpan.FromMinutes(5);
@@ -24,6 +28,8 @@ public class BookingQueueConsumer : BackgroundService
         _processor = client.CreateProcessor(
             configuration["ServiceBus:TopicName"],
             configuration["ServiceBus:SubscriptionName"],
+            // [Patron: Peek-Lock + confirmacion manual] El mensaje solo se borra cuando lo completamos,
+            // despues de guardar en la base. Si el proceso cae antes, Service Bus lo vuelve a entregar.
             new ServiceBusProcessorOptions { AutoCompleteMessages = false }
             );
     }
@@ -65,16 +71,19 @@ public class BookingQueueConsumer : BackgroundService
 
         if (evt is null)
         {
-            // Mensaje veneno: reintentarlo no sirve, va directo a dead-letter.
-            await args.DeadLetterMessageAsync(args.Message, "InvalidbienPayload", "No se pudo leer ReservationRequestedEvent.");
+            // [Patron: Dead Letter Channel] Mensaje veneno: reintentarlo no sirve, va directo a dead-letter
+            // para no bloquear la suscripcion y poder inspeccionarlo despues.
+            await args.DeadLetterMessageAsync(args.Message, "InvalidPayload", "No se pudo leer ReservationRequestedEvent.");
             return;
         }
 
-        // Un scope por mensaje: DbContext y repositorio nuevos, igual que un request HTTP
+        // [Patron: Unit of Work por mensaje] El worker es Singleton y el DbContext es Scoped: un scope por
+        // mensaje da DbContext y repositorio nuevos, igual que un request HTTP.
         using var scope = _scopeFactory.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<IBookingRepository>();
 
-        // Idempotencia: si el mensaje llega repetido, ya fue procesado.
+        // [Patron: Idempotent Consumer] Service Bus entrega "al menos una vez": si el mensaje llega repetido
+        // (mismo ReservationId guardado como RequestId), ya fue procesado y se descarta.
         if (await repository.GetByRequestIdAsync(evt.ReservationId) is not null)
         {
             _logger.LogInformation("Reserva {ReservationId} ya procesada, se descarta", evt.ReservationId);
@@ -103,8 +112,9 @@ public class BookingQueueConsumer : BackgroundService
         }
         catch (DbUpdateException ex)
         {
-            // Otra instancia gano la carrera: el indice unico freno el insert
-            // se reintenta y en el proximo intento cae en idempotencia o en Rejected.
+            // [Patron: Concurrencia optimista con indice unico] Otra replica gano la carrera y el indice
+            // unico (EventId, SeatNumber) freno el insert. Se abandona el mensaje para reintentarlo:
+            // en el proximo intento cae en idempotencia o queda Rejected por asiento ocupado.
             _logger.LogWarning(ex, "Conflicto al guardar la reserva {ReservationId}, se reintenta", evt.ReservationId);
             await args.AbandonMessageAsync(args.Message);
             return;

@@ -2,6 +2,10 @@
 
 namespace Booking.Api.Workers;
 
+// [Patron: Hosted Service / BackgroundService] Paso 8 de la consigna (vencimiento). La liberacion de
+// asientos se desacopla del flujo HTTP: una limpieza periodica autonoma que no depende de que un usuario
+// haga un request. El intervalo se lee de configuracion (ReservationExpiration:IntervalSeconds).
+// [Decision] PeriodicTimer en lugar de Task.Delay: mantiene un ritmo fijo aunque un ciclo tarde.
 public class ReservationExpirationWorker : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;

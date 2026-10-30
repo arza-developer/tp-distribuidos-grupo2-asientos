@@ -38,7 +38,10 @@ namespace Booking.Api.Repositories
             await _context.SaveChangesAsync(cancellationToken);
         }
 
-        // Vence las reservas retenidas cuyo tiempo de retencion ya paso
+        // Vence las reservas retenidas cuyo tiempo de retencion ya paso.
+        // [Decision: UPDATE atomico con ExecuteUpdateAsync] Un solo UPDATE en la base, sin cargar las reservas
+        // en memoria. El filtro Status = Retained evita pisar una reserva confirmada justo antes del ciclo.
+        // El asiento se libera solo: el indice unico filtrado solo cuenta reservas Retained o Confirmed.
         public async Task<int> ExpireOverdueReservationsAsync(DateTime nowUtc, CancellationToken cancellationToken = default)
         {
             return await _context.Reservations
