@@ -1,5 +1,6 @@
 # Bitácora: Tarea 03 (Booking Worker + Expiración)
 
+**Integrante:** Agustin Tabarcache
 **Rama:** `feature/03-booking-worker-expiration`
 **Especificación:** [TASK_03_BOOKING_WORKER_EXPIRATION.md](TASK_03_BOOKING_WORKER_EXPIRATION.md)
 
@@ -10,7 +11,7 @@ Registro de lo que se va haciendo en la tarea, tanto lo hecho por el responsable
 | # | Trabajo | Estado |
 |---|---------|--------|
 | 1 | `BookingQueueConsumer`: escuchar la cola de Azure Service Bus y registrar reservas | Hecho |
-| 2 | `ReservationExpirationWorker`: vencer reservas retenidas cada 15-30 s | Hecho (falta commit) |
+| 2 | `ReservationExpirationWorker`: vencer reservas retenidas cada 15-30 s | Hecho |
 | 3 | Liberación del asiento al vencer | Resuelto por diseño y verificado (prueba 6c) |
 
 ## Plan del trabajo 1: `BookingQueueConsumer`
