@@ -56,8 +56,54 @@ namespace Booking.Api.Services
             };
 
             //Guardar la reserva
-            await _repository.AddReservationAsync(reservation, cancellationToken);
-            return reservation;
+            try
+            {
+                // Intentar guardar la reserva en la base de datos
+                await _repository.AddReservationAsync(reservation, cancellationToken);
+                return reservation;
+            }
+            catch (ReservationUniqueConflictException)
+            {
+                // Verifica si la request ya fue procesada por otro hilo
+                var existingByRequestId = await _repository.GetByRequestIdAsync(request.RequestId);
+
+                if (existingByRequestId != null)
+                {
+                    return existingByRequestId;
+                }
+
+                // Verifica si el asiento ya estaba ocupado
+                bool seatOccupiedNow = await _repository.HasActiveReservationAsync(request.EventId, seatNumber);
+                
+                if (!seatOccupiedNow)
+                {
+                    throw;
+                }
+
+                // Si el asiento estaba ocupado, crea una reserva rechazada
+                reservation.Status = ReservationStatus.Rejected;
+                reservation.ExpiresAtUtc = null;
+                reservation.RejectionReason = ReservationRejectionReason.SeatOccupied;
+
+                try
+                {
+                    // Intenta guardar la reserva rechazada en la base de datos
+                    await _repository.AddReservationAsync(reservation, cancellationToken);
+                    return reservation;
+                }
+                catch (ReservationUniqueConflictException)
+                {
+                    // Si ocurre una excepción de conflicto único, verifica si otro hilo ya procesó la solicitud y devuelve la reserva existente
+                    var duplicate = await _repository.GetByRequestIdAsync(request.RequestId);
+
+                    if (duplicate != null)
+                    {
+                        return duplicate;
+                    }
+
+                    throw;
+                }
+            }
         }
     }
 }
