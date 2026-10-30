@@ -1,5 +1,6 @@
 using Booking.Api.Data;
 using Booking.Api.Repositories;
+using Booking.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Azure.Messaging.ServiceBus;
 using Booking.Api.Workers;
@@ -12,8 +13,11 @@ builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 builder.Services.AddSingleton(_ => new ServiceBusClient(builder.Configuration["ServiceBus:ConnectionString"]));
 builder.Services.AddHostedService<BookingQueueConsumer>();
 builder.Services.AddHostedService<ReservationExpirationWorker>();
+builder.Services.AddScoped<IBookingService, BookingService>();
+
 // Add services to the container.
 builder.Services.AddControllers();
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
