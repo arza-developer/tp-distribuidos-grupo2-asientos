@@ -60,5 +60,37 @@ namespace Booking.Api.Repositories
               r.ExpiresAtUtc <= nowUtc)
               .ExecuteUpdateAsync(setters => setters.SetProperty(r => r.Status, ReservationStatus.Expired), cancellationToken);
         }
+
+        // Recupera una reserva por su ID
+        public async Task<Reservation?> GetByIdAsync(Guid reservationId, CancellationToken cancellationToken = default)
+        {
+            return await _context.Reservations
+                .AsNoTracking()
+                .SingleOrDefaultAsync(r => r.Id == reservationId, cancellationToken);
+        }
+
+        // Confirma una reserva si es válida (es decir, si está retenida y no ha expirado)
+        public async Task<int> ConfirmIfValidAsync(Guid reservationId, DateTime nowUtc, CancellationToken cancellationToken = default)
+        {
+            return await _context.Reservations.Where(r =>
+                r.Id == reservationId &&
+                r.Status == ReservationStatus.Retained &&
+                r.ExpiresAtUtc != null &&
+                r.ExpiresAtUtc > nowUtc)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(r => r.Status, ReservationStatus.Confirmed), cancellationToken);
+        }
+
+        // Rechaza una reserva si está en estado "Retained"
+        public async Task<int> RejectIfRetainedAsync(Guid reservationId, ReservationRejectionReason reason, CancellationToken cancellationToken = default)
+        {
+            // Actualiza el estado de la reserva a "Rejected" si está en estado "Retained"
+            return await _context.Reservations.Where(r =>
+                r.Id == reservationId &&
+                r.Status == ReservationStatus.Retained)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(r => r.Status, ReservationStatus.Rejected)
+                    .SetProperty(r => r.RejectionReason,(ReservationRejectionReason?)reason)
+                    .SetProperty(r => r.ExpiresAtUtc, (DateTime?)null), cancellationToken);
+        }
     }
 }

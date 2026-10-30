@@ -14,6 +14,7 @@ namespace Booking.Api.Services
             _repository = repository;
         }
 
+        // Intentar retener una reserva
         public async Task<Reservation> TryRetainReservationAsync( ReserveSeatRequest request, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(request);
@@ -104,6 +105,93 @@ namespace Booking.Api.Services
                     throw;
                 }
             }
+        }
+
+        // Confirmar una reserva
+        public async Task<Reservation> ConfirmReservationAsync(Guid reservationId, CancellationToken cancellationToken = default)
+        {
+            // Validar el id de la reserva
+            if (reservationId == Guid.Empty)
+            {
+                throw new ArgumentException("El id de la reserva es invalido.");
+            }
+
+            // Intentar confirmar la reserva en la base de datos
+            int updateRows = await _repository.ConfirmIfValidAsync(reservationId, DateTime.UtcNow, cancellationToken);
+
+            // Recuperamos la reserva para verificar su estado
+            var reservation = await _repository.GetByIdAsync(reservationId);
+
+            if(reservation == null)
+            {
+                throw new KeyNotFoundException("La reserva no existe.");
+            }
+
+            // Si la reserva fue exitosa o ya estaba confirmada, devolvemos la reserva confirmada
+            if (reservation.Status == ReservationStatus.Confirmed)
+            {
+                return reservation;
+            }
+
+            throw new InvalidOperationException("No se puede confirmar una reserva en estado {reservation.Status}.");
+        }
+
+        // Rechazar una reserva
+        public async Task<Reservation> RejectReservationAsync(Guid reservationId, ReservationRejectionReason reason, CancellationToken cancellationToken = default)
+        {
+            // Validar el id de la reserva
+            if (reservationId == Guid.Empty)
+            {
+                throw new ArgumentException("El id de la reserva es invalido.");
+            }
+
+            // Validar el motivo de rechazo
+            if (!Enum.IsDefined(reason))
+            {
+                throw new ArgumentException("El motivo de rechazo es invalido.");
+            }
+
+            // Intentar rechazar la reserva en la base de datos
+            await _repository.RejectIfRetainedAsync(reservationId, reason, cancellationToken);
+
+            // Recuperamos la reserva para verificar su estado
+            var reservation = await _repository.GetByIdAsync(reservationId);
+
+            if(reservation == null)
+            {
+                throw new KeyNotFoundException("La reserva no existe.");
+            }
+
+            // Si fue rechazada por el mismo motivo, devolvemos la reserva rechazada
+            if (reservation.Status == ReservationStatus.Rejected && reservation.RejectionReason == reason)
+            {
+                return reservation;
+            }
+
+            throw new InvalidOperationException($"No se puede rechazar la reserva. " + $"Estado actual: {reservation.Status}. " + $"Motivo actual: {reservation.RejectionReason}.");
+        }
+
+        public async Task<Reservation> TryExpireReservationAsync(Guid reservationId, CancellationToken cancellationToken = default)
+        {
+            // Validar el id de la reserva
+            if (reservationId == Guid.Empty)
+            {
+                throw new ArgumentException("El id de la reserva es invalido.");
+            }
+
+            // Intentar expirar la reserva en la base de datos
+            await _repository.ExpireIfDueAsync(reservationId, DateTime.UtcNow, cancellationToken);
+            
+            // Recuperamos la reserva para verificar su estado
+            var reservation = await _repository.GetByIdAsync(reservationId);
+            
+            if (reservation == null)
+            {
+                throw new KeyNotFoundException("La reserva no existe.");
+            }
+
+            // Puede estar en estado Retained, Expired o Confirmed, devolvemos la reserva
+            return reservation;
         }
     }
 }
