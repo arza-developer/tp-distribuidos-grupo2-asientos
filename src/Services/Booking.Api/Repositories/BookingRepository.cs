@@ -37,5 +37,15 @@ namespace Booking.Api.Repositories
             _context.Reservations.Add(reservation);
             await _context.SaveChangesAsync(cancellationToken);
         }
+
+        // Vence las reservas retenidas cuyo tiempo de retencion ya paso
+        public async Task<int> ExpireOverdueReservationsAsync(DateTime nowUtc, CancellationToken cancellationToken = default)
+        {
+            return await _context.Reservations
+                .Where(r => r.Status == ReservationStatus.Retained && r.ExpiresAtUtc <= nowUtc)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(r => r.Status, ReservationStatus.Expired),
+                    cancellationToken);
+        }
     }
 }

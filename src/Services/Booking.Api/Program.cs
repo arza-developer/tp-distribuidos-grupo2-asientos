@@ -11,6 +11,7 @@ builder.Services.AddDbContext<BookingDbContext>(options =>
 builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 builder.Services.AddSingleton(_ => new ServiceBusClient(builder.Configuration["ServiceBus:ConnectionString"]));
 builder.Services.AddHostedService<BookingQueueConsumer>();
+builder.Services.AddHostedService<ReservationExpirationWorker>();
 // Add services to the container.
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
