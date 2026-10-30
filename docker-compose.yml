@@ -1,5 +1,12 @@
 # [Decisión de Arquitectura]: Orquestación multicontenedor para Sistema Distribuido (Requisito 3.d)
 # Topología: Microservicios desacoplados con bases de datos y runtimes independientes.
+
+# [Requisito 3.e]: Configuración JWT compartida. Con HS256 TODOS los servicios necesitan la misma clave:
+# el AuthServer la usa para FIRMAR y el resto para VERIFICAR.
+# [Decisión]: Se define una sola vez (ancla "&jwt-env") y cada servicio la reutiliza con "<<: *jwt-env".
+x-jwt-env: &jwt-env
+  Jwt__Key: "SeatsReservation-Dev-Key-Change-Me-Min-32-Bytes!!"
+
 services:
 
   # 1. Emulador local de colas Azure Storage Queues (LocalStack de Azure / Sin costo en nube)
@@ -23,8 +30,9 @@ services:
     ports:
       - "5104:5104"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_HTTP_PORTS=5104
+      <<: *jwt-env
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_HTTP_PORTS: "5104"
     cpus: 1.0
     mem_limit: 256m
 
@@ -38,8 +46,9 @@ services:
     ports:
       - "5101:5101"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_HTTP_PORTS=5101
+      <<: *jwt-env
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_HTTP_PORTS: "5101"
     # [Decisión]: 2.0 CPUs para garantizar paralelismo real en el ThreadPool bajo concurrencia
     cpus: 2.0
     mem_limit: 512m
@@ -54,8 +63,9 @@ services:
     ports:
       - "5102-5110:5102"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_HTTP_PORTS=5102
+      <<: *jwt-env
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_HTTP_PORTS: "5102"
     # [Decisión]: 2.0 CPUs para simular condiciones de carrera en acceso concurrente a asientos
     cpus: 2.0
     mem_limit: 512m
@@ -70,8 +80,9 @@ services:
     ports:
       - "5103:5103"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_HTTP_PORTS=5103
+      <<: *jwt-env
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_HTTP_PORTS: "5103"
     cpus: 1.0
     mem_limit: 256m
 
@@ -83,6 +94,6 @@ services:
         SERVICE_NAME: Notifications.Worker
     container_name: seats-notifications-worker
     environment:
-      - DOTNET_ENVIRONMENT=Development
+      DOTNET_ENVIRONMENT: "Development"
     cpus: 1.0
     mem_limit: 256m

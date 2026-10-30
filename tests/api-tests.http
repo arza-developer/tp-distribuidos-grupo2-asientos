@@ -9,12 +9,9 @@
 ### ==================================================================
 # @name login
 POST {{authUrl}}/connect/token
-Content-Type: application/json
+Content-Type: application/x-www-form-urlencoded
 
-{
-  "clientId": "frontend-user-client",
-  "role": "Client"
-}
+grant_type=password&username=cliente1&password=cliente1-dev
 
 ### Guardamos el token en una variable
 @authToken = {{login.access_token}}

@@ -1,58 +1,65 @@
-using System.IdentityModel.Tokens.Jwt;
+using AuthServer.Api.Options;
+using AuthServer.Api.Services;
 using System.Security.Claims;
-using System.Text;
-using Microsoft.IdentityModel.Tokens;
+using SeatsReservation.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddEndpointsApiExplorer();
+// Registro de servicios: le decimos a .NET qué piezas existen.
+builder.Services.Configure<AuthServerOptions>(builder.Configuration.GetSection("AuthServer"));
+builder.Services.AddSingleton<TokenService>();
+builder.Services.AddJwtAuthentication(builder.Configuration);
 
 var app = builder.Build();
 
-// [Decisión de Seguridad]: Clave simétrica compartida (HS256) para validación local de ultra-baja latencia
-const string SecretKey = "SeatsReservation-Super-Secret-Key-University-Project-2026!";
+// Fail fast: creamos TokenService al arrancar, así si falta la clave explota acá y no en el primer pedido.
+app.Services.GetRequiredService<TokenService>();
+app.UseAuthentication();
+app.UseAuthorization();
 
-// [Paso 2 y Requisito 3.e]: Endpoint de emisión de tokens JWT para usuarios y microservicios (M2M)
-app.MapPost("/connect/token", (TokenRequestDto dto) =>
+// Paso 2 de la consigna y requisito 3.e: emisión de tokens (OAuth2 Client Credentials)
+// Paso 2 de la consigna y requisito 3.e: emisión de tokens (OAuth2)
+app.MapPost("/connect/token", async (HttpRequest request, TokenService tokens) =>
 {
-    var tokenHandler = new JwtSecurityTokenHandler();
-    var key = Encoding.UTF8.GetBytes(SecretKey);
+    // OAuth2 dice que el pedido va como formulario, no como JSON.
+    if (!request.HasFormContentType)
+        return Results.BadRequest(new { error = "invalid_request" });
 
-    var claims = new List<Claim>
+    var form = await request.ReadFormAsync();
+    var grantType = form["grant_type"].ToString();
+
+    // Ventanilla 1: microservicios (Client Credentials)
+    if (grantType == "client_credentials")
     {
-        new(JwtRegisteredClaimNames.Sub, dto.ClientId ?? "anonymous-user"),
-        new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-        new("role", dto.Role ?? "Client")
-    };
+        var client = tokens.FindClient(form["client_id"].ToString(), form["client_secret"].ToString());
+        if (client is null)
+            return Results.Json(new { error = "invalid_client" }, statusCode: 401);
 
-    var tokenDescriptor = new SecurityTokenDescriptor
+        var jwt = tokens.CreateToken(client.ClientId, client.Role);
+        return Results.Ok(new { access_token = jwt, token_type = "Bearer", expires_in = TokenService.ExpiresInSeconds });
+    }
+
+    // Ventanilla 2: personas (Password Grant). Simplificación del TP: en producción sería Authorization Code.
+    if (grantType == "password")
     {
-        Subject = new ClaimsIdentity(claims),
-        Expires = DateTime.UtcNow.AddHours(2),
-        Issuer = "SeatsReservation.AuthServer",
-        Audience = "SeatsReservation.Microservices",
-        SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-    };
+        var user = tokens.FindUser(form["username"].ToString(), form["password"].ToString());
+        if (user is null)
+            return Results.BadRequest(new { error = "invalid_grant" });
 
-    var token = tokenHandler.CreateToken(tokenDescriptor);
-    var jwtString = tokenHandler.WriteToken(token);
+        // El "sub" es el UserId: así Availability sabe quién reserva sin creerle al body.
+        var jwt = tokens.CreateToken(user.UserId, user.Role);
+        return Results.Ok(new { access_token = jwt, token_type = "Bearer", expires_in = TokenService.ExpiresInSeconds });
+    }
 
-    return Results.Ok(new
-    {
-        access_token = jwtString,
-        token_type = "Bearer",
-        expires_in = 7200
-    });
-})
-.WithName("GetToken")
-.WithSummary("[Paso 2 y 3.e]: Emisión de tokens de autenticación JWT")
-.WithDescription("Genera tokens simétricos HS256 tanto para usuarios finales como para comunicación servicio a servicio (M2M).");
+    return Results.BadRequest(new { error = "unsupported_grant_type" });
+});
+
 
 app.MapGet("/", () => "Auth Server running on port 5104. Use POST /connect/token to get JWT.");
 
-app.Run();
+// Criterio de aceptación: endpoint protegido. Sin token -> 401. Con token válido -> 200 y muestra sus claims.
+app.MapGet("/connect/whoami", (ClaimsPrincipal user) =>
+    Results.Ok(user.Claims.Select(c => new { c.Type, c.Value })))
+    .RequireAuthorization();
 
-/// <summary>
-/// [Dominio Anémico - Requisito 3.e]: DTO de solicitud de token de autenticación.
-/// </summary>
-public record TokenRequestDto(string? ClientId, string? ClientSecret, string? Role);
+app.Run();

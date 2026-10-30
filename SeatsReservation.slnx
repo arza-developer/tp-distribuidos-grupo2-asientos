@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/" />
   <Folder Name="/src/Common/">
+    <Project Path="src/Common/SeatsReservation.Auth/SeatsReservation.Auth.csproj" Id="f58733f9-3ee5-4408-b6fd-de7aa1e1c1cb" />
     <Project Path="src/Common/SeatsReservation.Contracts/SeatsReservation.Contracts.csproj" />
   </Folder>
   <Folder Name="/src/Services/">
