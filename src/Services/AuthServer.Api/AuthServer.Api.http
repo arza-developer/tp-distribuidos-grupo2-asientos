@@ -35,3 +35,20 @@ Authorization: Bearer {{m2m.response.body.$.access_token}}
 ### 7. Token falsificado (firma inventada) -> debería dar 401
 GET {{authUrl}}/connect/whoami
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJoYWNrZXIiLCJyb2xlIjoiU2VydmljZSJ9.firmaInventada
+
+### 8. Token de usuario -> debería dar 200
+# @name usuario
+POST {{authUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&username=cliente1&password=cliente1-dev
+
+### 9. Contraseña incorrecta -> debería dar 400
+POST {{authUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&username=cliente1&password=otra
+
+### 10. whoami con token de usuario -> debería dar 200 (mandá antes el pedido 8)
+GET {{authUrl}}/connect/whoami
+Authorization: Bearer {{usuario.response.body.$.access_token}}

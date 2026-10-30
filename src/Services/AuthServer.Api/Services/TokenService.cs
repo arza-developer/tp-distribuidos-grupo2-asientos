@@ -24,13 +24,22 @@ public sealed class TokenService
             ?? throw new InvalidOperationException("Falta Jwt:Key en la configuración");
     }
 
-    // Busca el cliente en la lista. Si no existe o el secreto no coincide, devuelve null.
+    // Busca el cliente (microservicio) en la lista. Si no existe o el secreto no coincide, devuelve null.
     public RegisteredClient? FindClient(string clientId, string clientSecret)
     {
         var client = _registry.Clients.FirstOrDefault(c => c.ClientId == clientId);
         if (client is null) return null;
         if (client.ClientSecret != clientSecret) return null;
         return client;
+    }
+
+    // Busca el usuario (persona) en la lista. Si no existe o la contraseña no coincide, devuelve null.
+    public DemoUser? FindUser(string username, string password)
+    {
+        var user = _registry.Users.FirstOrDefault(u => u.Username == username);
+        if (user is null) return null;
+        if (user.Password != password) return null;
+        return user;
     }
 
     // Arma el JWT. El rol viene de la lista, NUNCA de lo que mandó el que pide.

@@ -18,24 +18,42 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // Paso 2 de la consigna y requisito 3.e: emisión de tokens (OAuth2 Client Credentials)
-app.MapPost("/connect/token", async (HttpRequest request, TokenService tokens) => // agregamos TokenService como parámetro, .NET lo inyecta automáticamente
+// Paso 2 de la consigna y requisito 3.e: emisión de tokens (OAuth2)
+app.MapPost("/connect/token", async (HttpRequest request, TokenService tokens) =>
 {
     // OAuth2 dice que el pedido va como formulario, no como JSON.
     if (!request.HasFormContentType)
         return Results.BadRequest(new { error = "invalid_request" });
 
     var form = await request.ReadFormAsync();
+    var grantType = form["grant_type"].ToString();
 
-    if (form["grant_type"] != "client_credentials")
-        return Results.BadRequest(new { error = "unsupported_grant_type" });
+    // Ventanilla 1: microservicios (Client Credentials)
+    if (grantType == "client_credentials")
+    {
+        var client = tokens.FindClient(form["client_id"].ToString(), form["client_secret"].ToString());
+        if (client is null)
+            return Results.Json(new { error = "invalid_client" }, statusCode: 401);
 
-    var client = tokens.FindClient(form["client_id"].ToString(), form["client_secret"].ToString());
-    if (client is null)
-        return Results.Json(new { error = "invalid_client" }, statusCode: 401);
+        var jwt = tokens.CreateToken(client.ClientId, client.Role);
+        return Results.Ok(new { access_token = jwt, token_type = "Bearer", expires_in = TokenService.ExpiresInSeconds });
+    }
 
-    var jwt = tokens.CreateToken(client.ClientId, client.Role);
-    return Results.Ok(new { access_token = jwt, token_type = "Bearer", expires_in = TokenService.ExpiresInSeconds });
+    // Ventanilla 2: personas (Password Grant). Simplificación del TP: en producción sería Authorization Code.
+    if (grantType == "password")
+    {
+        var user = tokens.FindUser(form["username"].ToString(), form["password"].ToString());
+        if (user is null)
+            return Results.BadRequest(new { error = "invalid_grant" });
+
+        // El "sub" es el UserId: así Availability sabe quién reserva sin creerle al body.
+        var jwt = tokens.CreateToken(user.UserId, user.Role);
+        return Results.Ok(new { access_token = jwt, token_type = "Bearer", expires_in = TokenService.ExpiresInSeconds });
+    }
+
+    return Results.BadRequest(new { error = "unsupported_grant_type" });
 });
+
 
 app.MapGet("/", () => "Auth Server running on port 5104. Use POST /connect/token to get JWT.");
 
