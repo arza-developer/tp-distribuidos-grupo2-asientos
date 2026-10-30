@@ -1,53 +1,122 @@
 ﻿using Azure.Messaging.ServiceBus;
+using System.Text.Json;
+using Booking.Api.Models;
+using Booking.Api.Models.Enums;
+using Booking.Api.Repositories;
+using Microsoft.EntityFrameworkCore;
+using SeatsReservation.Contracts.Events;
 
 namespace Booking.Api.Workers;
 
-    public class BookingQueueConsumer : BackgroundService
+public class BookingQueueConsumer : BackgroundService
+{
+    private static readonly TimeSpan RetentionTime = TimeSpan.FromMinutes(5);
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    private readonly ServiceBusProcessor _processor;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<BookingQueueConsumer> _logger;
+
+    public BookingQueueConsumer(ServiceBusClient client, IServiceScopeFactory scopeFactory, IConfiguration configuration, ILogger<BookingQueueConsumer> logger)
     {
-        private readonly ServiceBusProcessor _processor;
-        private readonly ILogger<BookingQueueConsumer> _logger;
-        
-        public BookingQueueConsumer(ServiceBusClient client, IConfiguration configuration, ILogger<BookingQueueConsumer> logger)
+        _scopeFactory = scopeFactory;
+        _logger = logger;
+        _processor = client.CreateProcessor(
+            configuration["ServiceBus:TopicName"],
+            configuration["ServiceBus:SubscriptionName"],
+            new ServiceBusProcessorOptions { AutoCompleteMessages = false }
+            );
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        _processor.ProcessMessageAsync += HandleMessageAsync;
+        _processor.ProcessErrorAsync += HandleErrorAsync;
+
+        await _processor.StartProcessingAsync(stoppingToken);
+        _logger.LogInformation("Escuchando el topic de reservas...");
+
+        try
         {
-            _logger = logger;
-            _processor = client.CreateProcessor(
-                configuration["ServiceBus:TopicName"],
-                configuration["ServiceBus:SubscriptionName"],
-                new ServiceBusProcessorOptions { AutoCompleteMessages = false }
-                );
+            // Mantiene vivo el worker hasta que la aplicacion se apague.
+            await Task.Delay(Timeout.Infinite, stoppingToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // Apagado normal de la aplicacion.
         }
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        await _processor.StopProcessingAsync();
+        await _processor.DisposeAsync();
+    }
+
+    private async Task HandleMessageAsync(ProcessMessageEventArgs args)
+    {
+        ReservationRequestedEvent? evt;
+        try
         {
-            _processor.ProcessMessageAsync += HandleMessageAsync;
-            _processor.ProcessErrorAsync += HandleErrorAsync;
-
-            await _processor.StartProcessingAsync(stoppingToken);
-            _logger.LogInformation("Escuchando el topic de reservas...");
-
-            try
-            {
-                // Mantiene vivo el worker hasta que la aplicacion se apague.
-                await Task.Delay(Timeout.Infinite, stoppingToken);
-            }
-            catch (OperationCanceledException)
-            {
-                // Apagado normal de la aplicacion.
-            }
-
-            await _processor.StopProcessingAsync();
-            await _processor.DisposeAsync();
+            evt = args.Message.Body.ToObjectFromJson<ReservationRequestedEvent>(JsonOptions);
+        }
+        catch (JsonException ex)
+        {
+            evt = null;
+            _logger.LogWarning(ex, "Mensaje {MessageId} con JSON invalido", args.Message.MessageId);
         }
 
-        private async Task HandleMessageAsync(ProcessMessageEventArgs args)
+        if (evt is null)
         {
-            _logger.LogInformation("Mensaje recibido: {Body}", args.Message.Body.ToString());
+            // Mensaje veneno: reintentarlo no sirve, va directo a dead-letter.
+            await args.DeadLetterMessageAsync(args.Message, "InvalidbienPayload", "No se pudo leer ReservationRequestedEvent.");
+            return;
+        }
+
+        // Un scope por mensaje: DbContext y repositorio nuevos, igual que un request HTTP
+        using var scope = _scopeFactory.CreateScope();
+        var repository = scope.ServiceProvider.GetRequiredService<IBookingRepository>();
+
+        // Idempotencia: si el mensaje llega repetido, ya fue procesado.
+        if (await repository.GetByRequestIdAsync(evt.ReservationId) is not null)
+        {
+            _logger.LogInformation("Reserva {ReservationId} ya procesada, se descarta", evt.ReservationId);
             await args.CompleteMessageAsync(args.Message);
+            return;
         }
 
-        private Task HandleErrorAsync(ProcessErrorEventArgs args)
+        var seatTaken = await repository.HasActiveReservationAsync(evt.EventId, evt.SeatNumber);
+        var now = DateTime.UtcNow;
+        var reservation = new Reservation
         {
+            Id = Guid.NewGuid(),
+            RequestId = evt.ReservationId,
+            EventId = evt.EventId,
+            SeatNumber = evt.SeatNumber,
+            UserId = evt.UserId.ToString(),
+            CreatedAtUtc = now,
+            Status = seatTaken ? ReservationStatus.Rejected : ReservationStatus.Retained,
+            ExpiresAtUtc = seatTaken ? null : now.Add(RetentionTime),
+            RejectionReason = seatTaken ? ReservationRejectionReason.SeatOccupied : null
+        };
+
+        try
+        {
+            await repository.AddReservationAsync(reservation, args.CancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            // Otra instancia gano la carrera: el indice unico freno el insert
+            // se reintenta y en el proximo intento cae en idempotencia o en Rejected.
+            _logger.LogWarning(ex, "Conflicto al guardar la reserva {ReservationId}, se reintenta", evt.ReservationId);
+            await args.AbandonMessageAsync(args.Message);
+            return;
+        }
+
+        _logger.LogInformation("Reserva {ReservationId} registrada como {Status}", reservation.Id, reservation.Status);
+        await args.CompleteMessageAsync(args.Message);
+    }
+
+    private Task HandleErrorAsync(ProcessErrorEventArgs args)
+    {
         _logger.LogError(args.Exception, "Error de Service Bus en {EntityPath}", args.EntityPath);
         return Task.CompletedTask;
-        }
     }
+}
