@@ -44,6 +44,27 @@ services:
     cpus: 2.0
     mem_limit: 512m
 
+  # 3b. Nueva Availability (Clean Architecture sobre template Ardalis, .NET 10).
+  # Convive con availability-api hasta completar el desarrollo; reemplazará su puerto 5101 en el cutover.
+  # Se levanta solo con: docker compose --profile availability-net10 up --build
+  availability-web:
+    profiles: ["availability-net10"]
+    build:
+      context: .
+      dockerfile: Dockerfile.availability
+    container_name: seats-availability-web
+    ports:
+      - "5111:5101"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=5101
+      - ConnectionStrings__SqliteConnection=Data Source=/data/availability.db
+      - Database__ApplyMigrationsOnStartup=true
+    volumes:
+      - availability-data:/data
+    cpus: 2.0
+    mem_limit: 512m
+
   # 4. Procesamiento Transaccional y Concurrencia de Asientos (N-Layer - Requisito 3.b y Paso 4)
   booking-api:
     build:
@@ -86,3 +107,6 @@ services:
       - DOTNET_ENVIRONMENT=Development
     cpus: 1.0
     mem_limit: 256m
+
+volumes:
+  availability-data:

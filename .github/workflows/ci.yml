@@ -2,11 +2,13 @@ name: Build and Verify
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, 'feature/**' ]
   pull_request:
     branches: [ main, develop ]
 
 jobs:
+  # Servicios existentes (net8.0). El SDK 10 también compila net8, pero se deja 8.0.x para
+  # detectar regresiones en el runtime que usan las imágenes Docker de estos servicios.
   build:
     runs-on: ubuntu-latest
 
@@ -23,3 +25,38 @@ jobs:
 
     - name: Build Solution
       run: dotnet build ./SeatsReservation.slnx -c Release --no-restore
+
+  # Nueva Availability (Clean Architecture, net10.0). Solución propia en src/Services/Availability,
+  # con global.json / Directory.*.props propios para no afectar a los proyectos net8.
+  build-availability:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/Services/Availability
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET 10
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore ./Availability.slnx
+
+    - name: Build
+      run: dotnet build ./Availability.slnx -c Release --no-restore
+
+    - name: Test
+      run: dotnet test ./Availability.slnx -c Release --no-build
+
+  docker-availability:
+    runs-on: ubuntu-latest
+    needs: build-availability
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build imagen Availability (.NET 10)
+      run: docker build -f Dockerfile.availability -t seats-availability-web:ci .

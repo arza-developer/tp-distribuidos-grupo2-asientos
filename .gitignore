@@ -480,3 +480,9 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Datos locales de Availability (.NET 10)
+*.db
+*.db-shm
+*.db-wal
+src/Services/Availability/.claude/

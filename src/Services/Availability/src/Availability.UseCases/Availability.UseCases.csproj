@@ -1,0 +1,12 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Ardalis.Result" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Availability.Core\Availability.Core.csproj" />
+    <ProjectReference Include="..\..\..\..\Common\SeatsReservation.Contracts\SeatsReservation.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

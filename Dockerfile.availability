@@ -1,0 +1,19 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /app
+
+# Contracts (net8) es referenciado por Availability.UseCases (net10)
+COPY src/Common/SeatsReservation.Contracts/ ./src/Common/SeatsReservation.Contracts/
+# Incluye global.json, Directory.Build.props y Directory.Packages.props propios de Availability
+COPY src/Services/Availability/ ./src/Services/Availability/
+
+WORKDIR /app/src/Services/Availability
+RUN dotnet restore ./src/Availability.Web/Availability.Web.csproj
+RUN dotnet publish ./src/Availability.Web/Availability.Web.csproj -c Release -o /out --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+COPY --from=build /out .
+
+ENV ASPNETCORE_HTTP_PORTS=5101
+EXPOSE 5101
+ENTRYPOINT ["dotnet", "Availability.Web.dll"]
