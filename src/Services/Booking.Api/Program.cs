@@ -8,7 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services
     .AddGrpcClient<PaymentApi.PaymentApiClient>(options =>
         options.Address = new Uri(builder.Configuration["Services:PaymentGrpc"]
-            ?? throw new InvalidOperationException("Falta la configuración 'Services:PaymentGrpc'.")))
+            ?? throw new InvalidOperationException("PaymentGrpc: es obligatorio'.")))
     .AddResilienceHandler("payment", pipeline =>
     {
         pipeline.AddRetry(new HttpRetryStrategyOptions
@@ -31,6 +31,25 @@ builder.Services
     });
 
 builder.Services.AddScoped<IPaymentClient, PaymentClient>();
+
+builder.Services
+    .AddOptions<AuthenticationClientConfiguration>()
+    .Bind(builder.Configuration.GetSection(AuthenticationClientConfiguration.SectionName))
+    .Validate(
+        options =>
+            Uri.TryCreate(options.AuthenticationEndpoint, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps),
+        "AuthServer:AuthenticationEndpoint tiene que ser un path valido.")
+    .Validate(
+        options => !string.IsNullOrWhiteSpace(options.ClientId),
+        "AuthServer:ClientId es obligatorio.")
+    .Validate(
+        options => !string.IsNullOrWhiteSpace(options.ClientSecret),
+        "AuthServer:ClientSecret es obligatorio.")
+    .ValidateOnStart();
+
+builder.Services.AddHttpClient("AuthServer");
+builder.Services.AddSingleton<IAuthenticationClient, AuthenticationClient>();
 
 // Add services to the container.
 

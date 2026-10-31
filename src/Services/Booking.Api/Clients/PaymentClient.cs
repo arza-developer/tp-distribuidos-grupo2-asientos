@@ -15,10 +15,12 @@ public class PaymentClient : IPaymentClient
 
     private readonly PaymentApi.PaymentApiClient _client;
     private readonly ILogger<PaymentClient> _logger;
+    private readonly IAuthenticationClient _authenticationClient;
 
-    public PaymentClient(PaymentApi.PaymentApiClient client, ILogger<PaymentClient> logger)
+    public PaymentClient(PaymentApi.PaymentApiClient client, IAuthenticationClient authenticationClient, ILogger<PaymentClient> logger)
     {
         _client = client;
+        _authenticationClient = authenticationClient;
         _logger = logger;
     }
 
@@ -29,6 +31,15 @@ public class PaymentClient : IPaymentClient
         string correlationId,
         CancellationToken ct = default)
     {
+        var token = await _authenticationClient.GetTokenAsync(ct);
+
+        _logger.LogInformation($"[AUTH CLIENT] used token {token}");
+
+        var headers = new Metadata
+        {
+            { "authorization" , $"Bearer {token}" }
+        };
+
         var request = new PaymentRequest
         {
             ReservationId = reservationId.ToString(),
@@ -43,7 +54,10 @@ public class PaymentClient : IPaymentClient
 
         try
         {
-            var response = await _client.ProcessPaymentAsync(request, cancellationToken: ct);
+            var response = await _client.ProcessPaymentAsync(
+                request, 
+                headers: headers,
+                cancellationToken: ct);
 
             if (response.IsSuccess)
             {
