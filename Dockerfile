@@ -5,6 +5,7 @@ WORKDIR /app
 # Copiar archivos de proyectos para restaurar dependencias
 COPY SeatsReservation.slnx ./
 COPY src/Common/SeatsReservation.Contracts/*.csproj ./src/Common/SeatsReservation.Contracts/
+COPY src/Common/SeatsReservation.Auth/*.csproj ./src/Common/SeatsReservation.Auth/
 COPY src/Services/Availability.Api/*.csproj ./src/Services/Availability.Api/
 COPY src/Services/Booking.Api/*.csproj ./src/Services/Booking.Api/
 COPY src/Services/Payment.Grpc/*.csproj ./src/Services/Payment.Grpc/

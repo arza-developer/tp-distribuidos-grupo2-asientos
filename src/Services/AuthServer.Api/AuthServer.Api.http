@@ -1,0 +1,54 @@
+@authUrl = http://localhost:5104
+
+### 1. Pedido correcto -> debería dar 200 con un token
+# @name m2m
+POST {{authUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&client_id=booking-api&client_secret=booking-secret-dev
+
+### 2. Secreto incorrecto -> debería dar 401
+POST {{authUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&client_id=booking-api&client_secret=cualquier-cosa
+
+### 3. Cliente que no existe -> debería dar 401
+POST {{authUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&client_id=hacker&client_secret=123
+
+### 4. Mandado como JSON (formato viejo) -> debería dar 400
+POST {{authUrl}}/connect/token
+Content-Type: application/json
+
+{ "clientId": "booking-api", "role": "Admin" }
+
+### 5. Endpoint protegido SIN token -> debería dar 401
+GET {{authUrl}}/connect/whoami
+
+### 6. Endpoint protegido CON token -> debería dar 200 (mandá antes el pedido 1)
+GET {{authUrl}}/connect/whoami
+Authorization: Bearer {{m2m.response.body.$.access_token}}
+
+### 7. Token falsificado (firma inventada) -> debería dar 401
+GET {{authUrl}}/connect/whoami
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJoYWNrZXIiLCJyb2xlIjoiU2VydmljZSJ9.firmaInventada
+
+### 8. Token de usuario -> debería dar 200
+# @name usuario
+POST {{authUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&username=cliente1&password=cliente1-dev
+
+### 9. Contraseña incorrecta -> debería dar 400
+POST {{authUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&username=cliente1&password=otra
+
+### 10. whoami con token de usuario -> debería dar 200 (mandá antes el pedido 8)
+GET {{authUrl}}/connect/whoami
+Authorization: Bearer {{usuario.response.body.$.access_token}}
