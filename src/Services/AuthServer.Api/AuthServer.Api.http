@@ -1,4 +1,5 @@
 @authUrl = http://localhost:5104
+@idpUrl = http://localhost:5105
 
 ### 1. Pedido correcto -> debería dar 200 con un token
 # @name m2m
@@ -52,3 +53,17 @@ grant_type=password&username=cliente1&password=otra
 ### 10. whoami con token de usuario -> debería dar 200 (mandá antes el pedido 8)
 GET {{authUrl}}/connect/whoami
 Authorization: Bearer {{usuario.response.body.$.access_token}}
+
+
+### 11. Login en el proveedor externo -> debería dar 200 con un id_token
+# @name externo
+POST {{idpUrl}}/login
+Content-Type: application/x-www-form-urlencoded
+
+username=ana@ejemplo.com&password=ana-dev
+
+### 12. Contraseña incorrecta en el proveedor externo -> debería dar 401
+POST {{idpUrl}}/login
+Content-Type: application/x-www-form-urlencoded
+
+username=ana@ejemplo.com&password=otra
