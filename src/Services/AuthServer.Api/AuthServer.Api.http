@@ -67,3 +67,39 @@ POST {{idpUrl}}/login
 Content-Type: application/x-www-form-urlencoded
 
 username=ana@ejemplo.com&password=otra
+
+### 13. Canje: id_token de Ana -> token nuestro -> debería dar 200 (mandá antes el 11)
+# @name canje
+POST {{authUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=urn:ietf:params:oauth:grant-type:token-exchange&subject_token={{externo.response.body.$.id_token}}
+
+### 14. whoami con el token de Ana -> debería dar 200 (mandá antes el 13)
+GET {{authUrl}}/connect/whoami
+Authorization: Bearer {{canje.response.body.$.access_token}}
+
+### 15. Juan: login en el proveedor -> 200 (existe en el proveedor)
+# @name externoJuan
+POST {{idpUrl}}/login
+Content-Type: application/x-www-form-urlencoded
+
+username=juan@ejemplo.com&password=juan-dev
+
+### 16. Juan: canje -> debería dar 400 (NO está vinculado en nuestro sistema)
+POST {{authUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=urn:ietf:params:oauth:grant-type:token-exchange&subject_token={{externoJuan.response.body.$.id_token}}
+
+### 17. Canje con un id_token inventado -> debería dar 400
+POST {{authUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=urn:ietf:params:oauth:grant-type:token-exchange&subject_token=eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJleHQtMTAwMSJ9.firmaInventada
+
+### 18. El agujero tapado: Ana con contraseña vacía -> debería dar 400
+POST {{authUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&username=ana&password=

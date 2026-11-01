@@ -38,9 +38,18 @@ public sealed class TokenService
     {
         var user = _registry.Users.FirstOrDefault(u => u.Username == username);
         if (user is null) return null;
+
+        // [Seguridad]: un usuario sin contraseña local solo entra por el proveedor externo.
+        // Sin este chequeo, mandar password vacío ("") coincidiría y entraría cualquiera.
+        if (string.IsNullOrEmpty(user.Password)) return null;
+
         if (user.Password != password) return null;
         return user;
     }
+
+    // [3rd Party IdP]: busca qué usuario nuestro está vinculado a ese "sub" del proveedor externo.
+    public DemoUser? FindUserByExternalSubject(string externalSubject) =>
+        _registry.Users.FirstOrDefault(u => u.ExternalSubject == externalSubject);
 
     // Arma el JWT. El rol viene de la lista, NUNCA de lo que mandó el que pide.
     public string CreateToken(string subject, string role)
