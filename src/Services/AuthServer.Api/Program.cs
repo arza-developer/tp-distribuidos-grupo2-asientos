@@ -14,6 +14,9 @@ builder.Services.AddJwtAuthentication(builder.Configuration);
 // [3rd Party IdP]: cliente HTTP para descargar el JWKS del proveedor externo.
 builder.Services.AddHttpClient<ExternalTokenValidator>(c => c.Timeout = TimeSpan.FromSeconds(5));
 
+// [Clase 6 - Razor Pages]: la página de login de la boletería (Authorization Code).
+builder.Services.AddRazorPages();
+
 var app = builder.Build();
 
 // Fail fast: creamos TokenService al arrancar, así si falta la clave explota acá y no en el primer pedido.
@@ -22,6 +25,7 @@ app.Services.GetRequiredService<TokenService>();
 // [Clase 12]: primero autenticación (¿quién sos?), después autorización (¿qué podés hacer?).
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapRazorPages();
 
 // Paso 2 de la consigna y requisito 3.e: emisión de tokens (OAuth2)
 app.MapPost("/connect/token", async (HttpRequest request, TokenService tokens, ExternalTokenValidator external) =>
