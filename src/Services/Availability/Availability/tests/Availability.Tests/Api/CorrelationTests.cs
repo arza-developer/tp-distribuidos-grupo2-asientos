@@ -172,6 +172,21 @@ public class CorrelationTests : IClassFixture<AvailabilityApiFactory>
     }
 
     [Fact]
+    public async Task HandledTechnicalFailures_AreLoggedOnce_NotRepeatedByTheExceptionMiddleware()
+    {
+        var id = NewId();
+        var seat = await _factory.CreateAvailableSeatAsync();
+        _factory.Publisher.ThrowOnPublish = new Availability.Application.Exceptions.MessagePublishException("broker caído");
+        await _client.SendAsync(Request(HttpMethod.Post, "/api/reservations", id,
+            new { eventId = SeedData.EventId, seatNumber = seat, userId = TestJwt.ClientUserId, price = 15000m }));
+
+        var errors = _factory.Logs.For(id).Where(e => e.Level == LogEventLevel.Error).ToList();
+
+        Assert.DoesNotContain(errors, e => e.Properties["SourceContext"].ToString().Contains("ExceptionHandlerMiddleware"));
+        Assert.Contains(errors, e => e.RenderMessage().Contains("Fallo técnico de mensajería")); // lo loguea ApiExceptionHandler
+    }
+
+    [Fact]
     public async Task UnexpectedErrors_AreStillLoggedAsErrors_WithTheCorrelationId()
     {
         var id = NewId();

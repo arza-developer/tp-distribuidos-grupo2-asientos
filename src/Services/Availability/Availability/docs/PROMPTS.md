@@ -194,3 +194,8 @@ Copia local para migrar luego. Encapsular archivos y logica aun que no respete e
 ```
 Implementar hasta punto 4.3
 ```
+
+### P38
+```
+Seguir con puntos T4.4 T4.5 y T4.6
+```

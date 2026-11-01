@@ -21,8 +21,8 @@ builder.Host.UseSerilog(preserveStaticLogger: true, configureLogger: (context, s
     .ReadFrom.Services(services)
     .Enrich.FromLogContext()
     .Enrich.WithProperty("CorrelationId", "-") // valor por defecto fuera de una request (LogContext tiene prioridad)
-    .Filter.ByExcluding(LogFilters.IsHandledBusinessException)
-    .WriteTo.Console(outputTemplate: "[{CorrelationId}] {Level:u3} {SourceContext}: {Message:lj}{NewLine}{Exception}"));
+    .Filter.ByExcluding(LogFilters.IsHandledException)
+    .WriteTo.Console(outputTemplate: "[{CorrelationId}] {Level:u3} {SourceContext}: {Message:l}{NewLine}{Exception}"));
 
 builder.Services.AddApplication();
 builder.Services.Configure<ReservationSyncOptions>(builder.Configuration.GetSection(ReservationSyncOptions.SectionName));
