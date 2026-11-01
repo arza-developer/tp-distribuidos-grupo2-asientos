@@ -1,36 +1,42 @@
 using Grpc.Core;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using SeatsReservation.Contracts.Grpc;
 
-namespace Payment.Grpc.Services;
-
-/// <summary>
-/// [Patrón Arquitectónico: N-Layer / gRPC Service]
-/// [Requisito 3.c]: Servicio de pagos de alto rendimiento mediante HTTP/2 y Protobuf binario.
-/// </summary>
 public class PaymentService : PaymentApi.PaymentApiBase
 {
-    private readonly ILogger<PaymentService> _logger;
+    private readonly IConfiguration _configuration;
+    private readonly PaymentDbContext _dbContext;
 
-    public PaymentService(ILogger<PaymentService> logger)
+    public PaymentService(IConfiguration configuration, PaymentDbContext dbContext)
     {
-        _logger = logger;
+        _configuration = configuration;
+        _dbContext = dbContext;
     }
 
-    /// <summary>
-    /// [Paso 5 Consigna]: Procesa el cobro de una reserva retenida invocada desde Booking.
-    /// </summary>
-    public override Task<PaymentResponse> ProcessPayment(PaymentRequest request, ServerCallContext context)
+    public override async Task<PaymentResponse> ProcessPayment(PaymentRequest request, ServerCallContext context)
     {
-        _logger.LogInformation("[PAYMENT GRPC] Procesando cobro para reserva {ReservationId}, monto {Amount}",
-            request.ReservationId, request.Amount);
+        bool simulateFailure = _configuration.GetValue<bool>("PaymentSettings:SimulateFailure");
+        bool isSuccess = !simulateFailure && request.Amount > 0;
+        string transactionId = Guid.NewGuid().ToString(); // Inmutable
 
-        // [Stub]: Simulación de cobro exitoso para flujo Happy Path
-        return Task.FromResult(new PaymentResponse
+        var transaction = new PaymentTransaction
         {
-            IsSuccess = true,
-            TransactionId = Guid.NewGuid().ToString(),
-            RejectionReason = string.Empty
-        });
+            TransactionId = transactionId,
+            ReservationId = request.ReservationId,
+            UserId = request.UserId,
+            Amount = request.Amount,
+            IsSuccess = isSuccess,
+            RejectionReason = isSuccess ? string.Empty : (simulateFailure ? "Fallo simulado por Circuit Breaker" : "Fondos insuficientes")
+        };
+
+        _dbContext.Transactions.Add(transaction);
+        await _dbContext.SaveChangesAsync();
+
+        return new PaymentResponse
+        {
+            IsSuccess = isSuccess,
+            TransactionId = isSuccess ? transactionId : string.Empty,
+            RejectionReason = transaction.RejectionReason
+        };
     }
 }
