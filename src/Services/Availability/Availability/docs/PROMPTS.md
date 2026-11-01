@@ -81,3 +81,18 @@ Sí, seguí con T1.4
 ```
 Sí, detallá Fase 2
 ```
+
+### P16
+```
+Antes de implementar sumar un paso previo de definicion de BussnesExcepciones con definicion abstracta en Domain, evaluar si cumple con arquitectura actual y si no ofrecer alternativa
+```
+
+### P17
+```
+Sí, seguí con T2.1
+```
+
+### P18
+```
+Seguir con T2.2
+```

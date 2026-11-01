@@ -1,8 +1,10 @@
 using Availability.Application.Abstractions;
+using Availability.Infrastructure.Messaging;
 using Availability.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using SeatsReservation.Contracts.Events;
 
 namespace Availability.Infrastructure;
 
@@ -19,7 +21,11 @@ public static class DependencyInjection
         });
 
         // Un par IXRepository/XRepository por entidad (la base genérica no se registra).
+        services.AddOptions<AzureQueueOptions>().BindConfiguration(AzureQueueOptions.SectionName);
+        services.AddSingleton<IMessagePublisher, AzureQueuePublisher>();
+
         services.AddScoped<ISeatRepository, SeatRepository>();
+        services.AddScoped<ISeatRequestRepository, SeatRequestRepository>();
         return services;
     }
 }
