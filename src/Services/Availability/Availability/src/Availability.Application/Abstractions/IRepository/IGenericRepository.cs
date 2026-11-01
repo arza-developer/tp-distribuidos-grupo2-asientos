@@ -1,7 +1,7 @@
 using System.Linq.Expressions;
 using Availability.Domain.Entities;
 
-namespace Availability.Application.Abstractions;
+namespace Availability.Application.Abstractions.IRepository;
 
 /// <summary>
 /// Contrato BASE mínimo de persistencia. No se inyecta ni se consume directamente:

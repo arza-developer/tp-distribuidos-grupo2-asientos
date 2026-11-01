@@ -1,6 +1,6 @@
-using Availability.Application.Abstractions;
+using Availability.Application.Abstractions.IRepository;
 using Availability.Domain.Entities;
 
-namespace Availability.Infrastructure.Persistence;
+namespace Availability.Infrastructure.Persistence.Repository;
 
 public class SeatRequestRepository(AvailabilityDbContext db) : GenericRepository<SeatRequest>(db), ISeatRequestRepository;

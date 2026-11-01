@@ -1,5 +1,6 @@
 using Availability.Domain.Entities;
 using Availability.Infrastructure.Persistence;
+using Availability.Infrastructure.Persistence.Repository;
 
 namespace Availability.Tests.Infrastructure;
 

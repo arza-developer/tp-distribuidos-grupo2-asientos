@@ -1,9 +1,9 @@
 using System.Linq.Expressions;
-using Availability.Application.Abstractions;
+using Availability.Application.Abstractions.IRepository;
 using Availability.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
-namespace Availability.Infrastructure.Persistence;
+namespace Availability.Infrastructure.Persistence.Repository;
 
 /// <summary>
 /// Implementación base compartida (abstracta: no se instancia ni se registra en DI).

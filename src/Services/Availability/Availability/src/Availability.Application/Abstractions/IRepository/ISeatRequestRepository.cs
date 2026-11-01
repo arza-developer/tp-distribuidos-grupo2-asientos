@@ -1,6 +1,6 @@
 using Availability.Domain.Entities;
 
-namespace Availability.Application.Abstractions;
+namespace Availability.Application.Abstractions.IRepository;
 
 /// <summary>
 /// Repositorio de solicitudes de reserva. Por ahora solo la base genérica; las consultas propias

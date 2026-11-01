@@ -1,6 +1,7 @@
 using Availability.Domain.Entities;
 using Availability.Domain.Enums;
 using Availability.Infrastructure.Persistence;
+using Availability.Infrastructure.Persistence.Repository;
 using Microsoft.EntityFrameworkCore;
 
 namespace Availability.Tests.Infrastructure;

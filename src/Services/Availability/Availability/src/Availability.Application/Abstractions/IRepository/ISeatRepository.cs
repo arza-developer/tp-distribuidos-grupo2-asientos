@@ -1,6 +1,6 @@
 using Availability.Domain.Entities;
 
-namespace Availability.Application.Abstractions;
+namespace Availability.Application.Abstractions.IRepository;
 
 /// <summary>Repositorio de asientos: base genérica + consultas propias de <see cref="Seat"/>.</summary>
 public interface ISeatRepository : IGenericRepository<Seat>

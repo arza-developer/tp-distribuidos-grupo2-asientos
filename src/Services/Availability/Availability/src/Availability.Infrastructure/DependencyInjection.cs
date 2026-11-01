@@ -1,6 +1,7 @@
-using Availability.Application.Abstractions;
+using Availability.Application.Abstractions.IRepository;
 using Availability.Infrastructure.Messaging;
 using Availability.Infrastructure.Persistence;
+using Availability.Infrastructure.Persistence.Repository;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

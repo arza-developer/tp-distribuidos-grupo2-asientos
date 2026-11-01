@@ -1,4 +1,4 @@
-using Availability.Application.Abstractions;
+using Availability.Application.Abstractions.IRepository;
 using MediatR;
 
 namespace Availability.Application.Seats.Queries.GetSeats;

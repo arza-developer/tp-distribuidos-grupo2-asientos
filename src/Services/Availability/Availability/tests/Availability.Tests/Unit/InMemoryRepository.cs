@@ -1,5 +1,5 @@
 using System.Linq.Expressions;
-using Availability.Application.Abstractions;
+using Availability.Application.Abstractions.IRepository;
 using Availability.Domain.Entities;
 
 namespace Availability.Tests.Unit;
@@ -40,3 +40,5 @@ public sealed class InMemorySeatRepository : InMemoryRepository<Seat>, ISeatRepo
     public Task<IReadOnlyList<Seat>> ListByEventAsync(Guid? eventId, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<Seat>>(Items.Where(s => eventId == null || s.EventId == eventId).ToList());
 }
+
+public sealed class InMemorySeatRequestRepository : InMemoryRepository<SeatRequest>, ISeatRequestRepository;
