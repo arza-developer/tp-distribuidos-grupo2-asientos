@@ -101,3 +101,34 @@ Seguir con T2.2
 ```
 Sí, seguí con T2.3
 ```
+
+### P20
+```
+Seguir con T2.4
+```
+
+### P21
+```
+realizar T2.5
+```
+
+### P22
+```
+Se volvieron asincronos metodos de update y remove en repositorios, corregir implementacion en test unit
+```
+
+### P23
+```
+Alinear también los tests al nuevo comportamiento
+```
+(Respuesta del usuario a la consulta de alcance: "Alinear también los tests al nuevo comportamiento".)
+
+### P24
+```
+Antes confirmar si metodos update y delete de EF ejecutan la accion contra bbdd o solo afectan trackin de entidad y espera a savechanges. De ser asi volver a hacer estos metodos sincronos
+```
+
+### P25
+```
+corregir punto 1 y punto 2. Anotar como tech debt definir flujo para volver Seat.IsAvailable, este flag es para robustecer guard de idempotencia y concurrencia ante posibles estados de consistencia eventual con booking
+```

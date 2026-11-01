@@ -19,12 +19,16 @@ namespace Availability.Application.Reservations.Commands.RequestReservation;
 /// (202) pero Booking todavía no decidió; el resultado final se consulta después (paso 7).
 /// </para>
 /// <para>
-/// No se rechaza por <c>Seat.IsAvailable</c>: ese flag local puede estar desactualizado y la exclusión mutua
-/// la decide Booking (índice único en su base). Availability solo exige que el asiento exista.
+/// <c>Seat.IsAvailable</c> es un GUARDA LOCAL de idempotencia y concurrencia ante la consistencia eventual con
+/// Booking: al reservar se marca en <c>false</c> y un nuevo pedido para ese asiento se rechaza
+/// (<see cref="SeatUnavailableException"/>) sin llegar al broker. La exclusión mutua definitiva sigue siendo de Booking.
+/// DEUDA TÉCNICA: falta definir el flujo que devuelve el flag a <c>true</c> (p. ej. al saber que Booking
+/// rechazó o venció la reserva) y volver atómico el chequeo (ver docs/PLAN.md, "Deuda técnica").
 /// </para>
 /// <para>
-/// Orden: guardar (Pending) → publicar. Si la publicación falla se compensa eliminando el registro, de modo que
-/// no queda una solicitud Pending huérfana; la excepción técnica sube para responder 503 y nunca 202.
+/// Orden: guardar (Pending, asiento no disponible) → publicar. Si la publicación falla se compensa: se elimina
+/// el registro y se restaura el asiento a disponible, de modo que no queda una solicitud Pending huérfana ni el
+/// asiento bloqueado; la excepción técnica sube para responder 503 y nunca 202.
 /// (Un outbox transaccional sería la mejora a futuro; se evita aquí por simplicidad.)
 /// </para>
 /// </summary>
@@ -43,6 +47,7 @@ public sealed class RequestReservationCommandHandler(
         var seatNumber = command.SeatNumber.Trim();
         var seat = await seats.FirstOrDefaultAsync(s => s.EventId == command.EventId && s.SeatNumber == seatNumber, ct)
                    ?? throw new SeatNotFoundException(command.EventId, seatNumber);
+        if (!seat.IsAvailable) throw new SeatUnavailableException(command.EventId, seatNumber);
 
         if (command.Price != seat.Price)
         {
@@ -63,8 +68,10 @@ public sealed class RequestReservationCommandHandler(
             RequestedAtUtc = DateTime.UtcNow,
             CorrelationId = correlation.CorrelationId
         };
+        seat.IsAvailable = false;
 
         await requests.AddAsync(request, ct);
+        seats.Update(seat);
         await requests.SaveChangesAsync(ct);
 
         try
@@ -82,7 +89,7 @@ public sealed class RequestReservationCommandHandler(
         }
         catch (MessagePublishException)
         {
-            await CompensateAsync(request);
+            await CompensateAsync(request, seat);
             throw;
         }
 
@@ -96,12 +103,18 @@ public sealed class RequestReservationCommandHandler(
         if (string.IsNullOrWhiteSpace(command.SeatNumber)) throw new InvalidReservationRequestException("SeatNumber vacío.");
     }
 
-    /// <summary>Quita el registro Pending cuyo evento no llegó al broker. Si también falla, se loguea y se conserva el error original.</summary>
-    private async Task CompensateAsync(SeatRequest request)
+    /// <summary>
+    /// Deshace lo guardado cuando el evento no llegó al broker: elimina el registro Pending y restaura el asiento a
+    /// disponible (ambos repositorios comparten el mismo DbContext, un solo SaveChanges los escribe juntos).
+    /// Si la compensación también falla, se loguea y se conserva el error original.
+    /// </summary>
+    private async Task CompensateAsync(SeatRequest request, Seat seat)
     {
         try
         {
             requests.Remove(request);
+            seat.IsAvailable = true;
+            seats.Update(seat);
             await requests.SaveChangesAsync(CancellationToken.None);
         }
         catch (Exception ex)

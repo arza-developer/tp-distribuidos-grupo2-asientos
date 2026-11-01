@@ -20,8 +20,10 @@ public interface IGenericRepository<T> where T : EntityBase
 
     Task AddAsync(T entity, CancellationToken ct = default);
 
+    /// <summary>Marca la entidad como modificada en el tracker de EF. NO escribe en la base: la escritura ocurre en <see cref="SaveChangesAsync"/>.</summary>
     void Update(T entity);
 
+    /// <summary>Marca la entidad como eliminada en el tracker de EF. NO escribe en la base: la escritura ocurre en <see cref="SaveChangesAsync"/>.</summary>
     void Remove(T entity);
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);

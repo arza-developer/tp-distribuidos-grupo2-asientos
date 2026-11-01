@@ -31,10 +31,26 @@ public class BusinessExceptionTests
     }
 
     [Fact]
+    public void SeatUnavailable_IsConflictCategory_NotNotFound_WithCleanMessage()
+    {
+        var eventId = Guid.NewGuid();
+
+        var ex = new SeatUnavailableException(eventId, "A-1");
+
+        Assert.IsAssignableFrom<BusinessConflictException>(ex);
+        Assert.IsNotAssignableFrom<BusinessNotFoundException>(ex);
+        Assert.Equal("seat.unavailable", ex.Code);
+        Assert.Equal($"El asiento 'A-1' del evento '{eventId}' no está disponible.", ex.Message);
+        Assert.DoesNotContain("no existe", ex.Message);
+    }
+
+    [Fact]
     public void Categories_AreDistinct()
     {
         Assert.False(typeof(BusinessNotFoundException).IsAssignableFrom(typeof(InvalidReservationRequestException)));
         Assert.False(typeof(BusinessValidationException).IsAssignableFrom(typeof(SeatNotFoundException)));
+        Assert.False(typeof(BusinessConflictException).IsAssignableFrom(typeof(SeatNotFoundException)));
+        Assert.False(typeof(BusinessConflictException).IsAssignableFrom(typeof(InvalidReservationRequestException)));
     }
 
     [Fact]

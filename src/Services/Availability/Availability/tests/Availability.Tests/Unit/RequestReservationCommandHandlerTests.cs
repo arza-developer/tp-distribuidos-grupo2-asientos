@@ -42,6 +42,7 @@ public class RequestReservationCommandHandlerTests
     public RequestReservationCommandHandlerTests()
     {
         _seats.Items.Add(new Seat { SeatId = Guid.NewGuid(), EventId = EventId, SeatNumber = "A-1", Price = 15000m, IsAvailable = true });
+        _seats.Items.Add(new Seat { SeatId = Guid.NewGuid(), EventId = EventId, SeatNumber = "A-2", Price = 15000m, IsAvailable = true });
         _seats.Items.Add(new Seat { SeatId = Guid.NewGuid(), EventId = EventId, SeatNumber = "A-3", Price = 18000m, IsAvailable = false });
         _publisher = new FakePublisher(_requests);
         _handler = new RequestReservationCommandHandler(
@@ -101,11 +102,32 @@ public class RequestReservationCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_SeatMarkedUnavailable_IsStillAccepted_BookingDecidesExclusion()
+    public async Task Handle_UnavailableSeat_ThrowsSeatUnavailable_AndPersistsAndPublishesNothing()
     {
-        var result = await _handler.Handle(Cmd(seat: "A-3", price: 18000m), default);
+        var ex = await Assert.ThrowsAsync<SeatUnavailableException>(
+            () => _handler.Handle(Cmd(seat: "A-3", price: 18000m), default));
 
-        Assert.NotEqual(Guid.Empty, result.ReservationId);
+        Assert.Equal("seat.unavailable", ex.Code);
+        Assert.Empty(_requests.Items);
+        Assert.Empty(_publisher.Published);
+    }
+
+    [Fact]
+    public async Task Handle_Success_MarksSeatAsUnavailable()
+    {
+        await _handler.Handle(Cmd(seat: "A-1"), default);
+
+        Assert.False(_seats.Items.Single(s => s.SeatNumber == "A-1").IsAvailable);
+    }
+
+    [Fact]
+    public async Task Handle_SecondRequestForSameSeat_ThrowsSeatUnavailable()
+    {
+        await _handler.Handle(Cmd(seat: "A-1"), default);
+
+        await Assert.ThrowsAsync<SeatUnavailableException>(() => _handler.Handle(Cmd(seat: "A-1"), default));
+
+        Assert.Single(_requests.Items);
         Assert.Single(_publisher.Published);
     }
 
@@ -133,6 +155,22 @@ public class RequestReservationCommandHandlerTests
 
         Assert.Empty(_requests.Items);
         Assert.Empty(_publisher.Published);
+    }
+
+    [Fact]
+    public async Task Handle_PublishFails_RestoresSeatAvailability_SoItCanBeRequestedAgain()
+    {
+        _publisher.ThrowOnPublish = new MessagePublishException("broker caído");
+
+        await Assert.ThrowsAsync<MessagePublishException>(() => _handler.Handle(Cmd(seat: "A-1"), default));
+
+        Assert.True(_seats.Items.Single(s => s.SeatNumber == "A-1").IsAvailable);
+
+        _publisher.ThrowOnPublish = null; // el broker se recupera
+        var retry = await _handler.Handle(Cmd(seat: "A-1"), default);
+
+        Assert.NotEqual(Guid.Empty, retry.ReservationId);
+        Assert.False(_seats.Items.Single(s => s.SeatNumber == "A-1").IsAvailable);
     }
 
     [Fact]
@@ -167,8 +205,8 @@ public class RequestReservationCommandHandlerTests
     [Fact]
     public async Task Handle_EachCallGetsADistinctReservationId()
     {
-        var first = await _handler.Handle(Cmd(), default);
-        var second = await _handler.Handle(Cmd(), default);
+        var first = await _handler.Handle(Cmd(seat: "A-1"), default);
+        var second = await _handler.Handle(Cmd(seat: "A-2"), default);
 
         Assert.NotEqual(first.ReservationId, second.ReservationId);
     }
