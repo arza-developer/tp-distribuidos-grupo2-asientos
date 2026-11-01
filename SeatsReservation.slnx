@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/" />
   <Folder Name="/src/Common/">
+    <Project Path="SeatsReservation.Observability/SeatsReservation.Observability.csproj" Id="945a77b7-3b86-47c6-a8b5-38e40abb0fc2" />
     <Project Path="src/Common/SeatsReservation.Contracts/SeatsReservation.Contracts.csproj" />
   </Folder>
   <Folder Name="/src/Services/">

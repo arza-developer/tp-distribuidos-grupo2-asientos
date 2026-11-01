@@ -10,11 +10,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Grpc.AspNetCore" Version="2.57.0" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.60.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="10.0.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\Common\SeatsReservation.Contracts\SeatsReservation.Contracts.csproj" />
+	<ProjectReference Include="..\..\..\SeatsReservation.Observability\SeatsReservation.Observability.csproj" />
   </ItemGroup>
 
 </Project>
