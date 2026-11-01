@@ -37,6 +37,7 @@ public sealed class SyncReservationStatusCommandHandler(
     ISeatRequestRepository requests,
     ISeatRepository seats,
     IBookingClient booking,
+    ICurrentUserAccessor currentUser,
     TimeProvider clock,
     IOptions<ReservationSyncOptions> options,
     ILogger<SyncReservationStatusCommandHandler> logger)
@@ -51,6 +52,9 @@ public sealed class SyncReservationStatusCommandHandler(
         var reservationId = command.ReservationId;
         var local = await requests.FirstOrDefaultAsync(r => r.ReservationId == reservationId, ct)
                     ?? throw new ReservationNotFoundException(reservationId);
+
+        // Solo el dueño ve su reserva; para los demás "no existe" (no se revela la existencia de reservas ajenas).
+        if (local.UserId != currentUser.UserId) throw new ReservationNotFoundException(reservationId);
 
         var info = await booking.GetStatusAsync(reservationId, ct); // BookingUnavailableException sube sin escribir nada
 

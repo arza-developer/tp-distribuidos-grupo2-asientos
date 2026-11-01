@@ -45,6 +45,17 @@ public class BusinessExceptionTests
     }
 
     [Fact]
+    public void ReservationUserMismatch_IsForbiddenCategory_WithStableCode()
+    {
+        var ex = new ReservationUserMismatchException();
+
+        Assert.IsAssignableFrom<BusinessForbiddenException>(ex);
+        Assert.IsAssignableFrom<BusinessException>(ex);
+        Assert.IsNotAssignableFrom<BusinessNotFoundException>(ex);
+        Assert.Equal("reservation.user_mismatch", ex.Code);
+    }
+
+    [Fact]
     public void Categories_AreDistinct()
     {
         Assert.False(typeof(BusinessNotFoundException).IsAssignableFrom(typeof(InvalidReservationRequestException)));

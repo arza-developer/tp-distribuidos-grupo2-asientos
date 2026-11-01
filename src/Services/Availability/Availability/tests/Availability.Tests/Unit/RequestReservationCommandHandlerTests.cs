@@ -5,6 +5,7 @@ using Availability.Application.Reservations.Commands.RequestReservation;
 using Availability.Domain.Entities;
 using Availability.Domain.Enums;
 using Availability.Domain.Exceptions;
+using Availability.Tests.Support;
 using Microsoft.Extensions.Logging.Abstractions;
 using SeatsReservation.Contracts.Events;
 
@@ -33,6 +34,7 @@ public class RequestReservationCommandHandlerTests
     }
 
     private static readonly Guid EventId = Guid.NewGuid();
+    private static readonly Guid CurrentUserId = Guid.NewGuid();
 
     private readonly InMemorySeatRepository _seats = new();
     private readonly InMemorySeatRequestRepository _requests = new();
@@ -46,12 +48,12 @@ public class RequestReservationCommandHandlerTests
         _seats.Items.Add(new Seat { SeatId = Guid.NewGuid(), EventId = EventId, SeatNumber = "A-3", Price = 18000m, IsAvailable = false });
         _publisher = new FakePublisher(_requests);
         _handler = new RequestReservationCommandHandler(
-            _seats, _requests, _publisher, new FakeCorrelation(), TimeProvider.System,
+            _seats, _requests, _publisher, new FakeCorrelation(), new FakeCurrentUserAccessor(CurrentUserId), TimeProvider.System,
             NullLogger<RequestReservationCommandHandler>.Instance);
     }
 
     private static RequestReservationCommand Cmd(string seat = "A-1", decimal price = 15000m, Guid? eventId = null, Guid? userId = null) =>
-        new(eventId ?? EventId, seat, userId ?? Guid.NewGuid(), price);
+        new(eventId ?? EventId, seat, userId ?? CurrentUserId, price);
 
     [Fact]
     public async Task Handle_Success_PersistsPendingRequest_AndPublishesEventToBookingQueue()
@@ -210,5 +212,40 @@ public class RequestReservationCommandHandlerTests
         var second = await _handler.Handle(Cmd(seat: "A-2"), default);
 
         Assert.NotEqual(first.ReservationId, second.ReservationId);
+    }
+
+    // ---------- identidad (TD-4): el userId del body debe ser el del token ----------
+
+    [Fact]
+    public async Task Handle_UserIdDifferentFromAuthenticatedUser_ThrowsMismatch_AndTouchesNothing()
+    {
+        var other = Guid.NewGuid();
+
+        var ex = await Assert.ThrowsAsync<ReservationUserMismatchException>(() => _handler.Handle(Cmd(userId: other), default));
+
+        Assert.Equal("reservation.user_mismatch", ex.Code);
+        Assert.Empty(_requests.Items);
+        Assert.Empty(_publisher.Published);
+        Assert.True(_seats.Items.Single(s => s.SeatNumber == "A-1").IsAvailable); // el asiento no se bloquea
+    }
+
+    [Fact]
+    public async Task Handle_NoAuthenticatedUser_ThrowsMismatch()
+    {
+        var handler = new RequestReservationCommandHandler(
+            _seats, _requests, _publisher, new FakeCorrelation(), new FakeCurrentUserAccessor(null), TimeProvider.System,
+            NullLogger<RequestReservationCommandHandler>.Instance);
+
+        await Assert.ThrowsAsync<ReservationUserMismatchException>(() => handler.Handle(Cmd(), default));
+
+        Assert.Empty(_requests.Items);
+    }
+
+    [Fact]
+    public async Task Handle_StoresTheAuthenticatedUserAsOwner()
+    {
+        await _handler.Handle(Cmd(), default);
+
+        Assert.Equal(CurrentUserId, Assert.Single(_requests.Items).UserId);
     }
 }

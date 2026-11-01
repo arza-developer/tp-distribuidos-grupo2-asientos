@@ -27,6 +27,10 @@ namespace Availability.Application.Reservations.Commands.RequestReservation;
 /// chequeo (ver docs/PLAN.md, "Deuda técnica").
 /// </para>
 /// <para>
+/// IDENTIDAD (TD-4): el <c>userId</c> del body debe ser el del token (<c>sub</c> = UserId en el Auth Server); si no,
+/// <see cref="ReservationUserMismatchException"/> (403) antes de tocar asiento, base o broker.
+/// </para>
+/// <para>
 /// Orden: guardar (Pending, asiento no disponible) → publicar. Si la publicación falla se compensa: se elimina
 /// el registro y se restaura el asiento a disponible, de modo que no queda una solicitud Pending huérfana ni el
 /// asiento bloqueado; la excepción técnica sube para responder 503 y nunca 202.
@@ -38,6 +42,7 @@ public sealed class RequestReservationCommandHandler(
     ISeatRequestRepository requests,
     IMessagePublisher publisher,
     ICorrelationIdAccessor correlation,
+    ICurrentUserAccessor currentUser,
     TimeProvider clock,
     ILogger<RequestReservationCommandHandler> logger)
     : IRequestHandler<RequestReservationCommand, ReservationAcceptedResult>
@@ -45,6 +50,9 @@ public sealed class RequestReservationCommandHandler(
     public async Task<ReservationAcceptedResult> Handle(RequestReservationCommand command, CancellationToken ct)
     {
         Validate(command);
+
+        // No se le cree al body quién reserva: el userId debe ser el del token (sub = UserId en el Auth Server).
+        if (currentUser.UserId != command.UserId) throw new ReservationUserMismatchException();
 
         var seatNumber = command.SeatNumber.Trim();
         var seat = await seats.FirstOrDefaultAsync(s => s.EventId == command.EventId && s.SeatNumber == seatNumber, ct)

@@ -20,6 +20,8 @@ namespace Availability.Tests.Infrastructure;
 /// </summary>
 public class SyncReservationStatusIntegrationTests
 {
+    private static readonly Guid OwnerId = Guid.NewGuid();
+
     /// <summary>Estado posterior a un POST exitoso: asiento A-1 bloqueado y una solicitud Pending. Devuelve ids.</summary>
     private static async Task<(Guid ReservationId, Guid SeatId, Guid EventId)> SeedReservedSeatA1Async(SqliteTestDb testDb)
     {
@@ -31,7 +33,7 @@ public class SyncReservationStatusIntegrationTests
         var request = new SeatRequest
         {
             ReservationId = Guid.NewGuid(), SeatId = seat.SeatId, EventId = seat.EventId, SeatNumber = seat.SeatNumber,
-            UserId = Guid.NewGuid(), Price = seat.Price, Status = ReservationStatus.Pending,
+            UserId = OwnerId, Price = seat.Price, Status = ReservationStatus.Pending,
             RequestedAtUtc = DateTime.UtcNow, CorrelationId = "corr"
         };
         seed.SeatRequests.Add(request);
@@ -52,7 +54,7 @@ public class SyncReservationStatusIntegrationTests
 
     private static SyncReservationStatusCommandHandler CreateHandler(
         AvailabilityDbContext db, RecordingBookingClient booking, TimeProvider? clock = null) =>
-        new(new SeatRequestRepository(db), new SeatRepository(db), booking, clock ?? TimeProvider.System,
+        new(new SeatRequestRepository(db), new SeatRepository(db), booking, new FakeCurrentUserAccessor(OwnerId), clock ?? TimeProvider.System,
             Options.Create(new ReservationSyncOptions()), NullLogger<SyncReservationStatusCommandHandler>.Instance);
 
     [Fact]

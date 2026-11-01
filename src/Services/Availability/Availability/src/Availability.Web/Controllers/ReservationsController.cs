@@ -3,21 +3,25 @@ using Availability.Application.Reservations.Commands.SyncReservationStatus;
 using Availability.Domain.Enums;
 using Availability.Web.Contracts;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Availability.Web.Controllers;
 
 [ApiController]
 [Route("api")]
+[Authorize(Roles = "Client")]
 public class ReservationsController(IMediator mediator) : ControllerBase
 {
     /// <summary>
     /// Solicita la reserva de un asiento. Responde 202 sin esperar a Booking (consistencia eventual).
-    /// Pendiente: requerirá JWT en T4.1.
+    /// Requiere token Bearer con rol Client (Auth Server).
     /// </summary>
     [HttpPost("reservations")]
     [ProducesResponseType(typeof(ReservationAcceptedDto), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
@@ -39,7 +43,7 @@ public class ReservationsController(IMediator mediator) : ControllerBase
     /// <summary>
     /// Paso 7 del TP: estado de la reserva, consultado a Booking a través de Availability. Además sincroniza el
     /// estado local (y libera el asiento si Booking rechazó/venció la reserva): ver SyncReservationStatusCommandHandler.
-    /// Pendiente: requerirá JWT en T4.1.
+    /// Requiere token Bearer con rol Client (Auth Server).
     /// </summary>
     [HttpGet("reservations/{id:guid}")]
     [ProducesResponseType(typeof(ReservationStatusDto), StatusCodes.Status200OK)]

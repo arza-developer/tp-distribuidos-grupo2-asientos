@@ -173,3 +173,24 @@ Antes de seguir con fase 4. Profundizar con resolucion de tech debt TD-01 para l
 Por ahora sincronizar al consultar, actualizar TD-01 expresando posibles alternativas con worker de reconciliacion pero metodo get nuevo en booking que devuelva List para evitar escalado de trabajo por acumulacion
 ```
 (Respuesta del usuario a la consulta sobre cómo resolver TD-1.)
+
+### P34
+```
+Detallar tareas para Fase 4, identificando claramente limitaciones por estado actual de desarrollo en auth server
+```
+
+### P35
+```
+Contrastar plan contra estado actual de codigo en rama "feature/06-auth-server-m2m". Inspeccionar rama como solo lectura
+```
+
+### P36
+```
+Copia local para migrar luego. Encapsular archivos y logica aun que no respete estructura para simplificar limpieza de codigo luego.
+```
+(Respuesta del usuario sobre cómo consumir la librería compartida de la rama 06; además eligió "Rol Client + userId == sub + dueño en GET" como alcance de autorización.)
+
+### P37
+```
+Implementar hasta punto 4.3
+```

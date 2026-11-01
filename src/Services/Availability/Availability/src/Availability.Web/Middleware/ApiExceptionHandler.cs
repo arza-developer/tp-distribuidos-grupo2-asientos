@@ -7,7 +7,7 @@ namespace Availability.Web.Middleware;
 
 /// <summary>
 /// Traduce excepciones a ProblemDetails por CATEGORÍA (el HTTP es una preocupación de esta capa, no del dominio):
-/// negocio inexistente → 404, negocio inválido → 400, conflicto de estado → 409, fallo técnico de mensajería o de Booking → 503.
+/// negocio inexistente → 404, negocio inválido → 400, usuario sin permiso sobre el recurso → 403, conflicto de estado → 409, fallo técnico de mensajería o de Booking → 503.
 /// Cualquier otra excepción no se maneja aquí y termina como 500 genérico, sin detalles.
 /// </summary>
 public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : IExceptionHandler
@@ -26,6 +26,11 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
             case BusinessValidationException e:
                 logger.LogInformation("Negocio ({Code}): {Message}", e.Code, e.Message);
                 problem = Business(StatusCodes.Status400BadRequest, "Solicitud inválida", e);
+                break;
+
+            case BusinessForbiddenException e:
+                logger.LogInformation("Negocio ({Code}): {Message}", e.Code, e.Message);
+                problem = Business(StatusCodes.Status403Forbidden, "Acceso denegado", e);
                 break;
 
             case BusinessConflictException e:

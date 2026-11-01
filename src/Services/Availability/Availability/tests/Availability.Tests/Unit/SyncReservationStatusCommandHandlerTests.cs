@@ -28,6 +28,8 @@ public class SyncReservationStatusCommandHandlerTests
         }
     }
 
+    private static readonly Guid CurrentUserId = Guid.NewGuid();
+
     private readonly InMemorySeatRepository _seats = new();
     private readonly InMemorySeatRequestRepository _requests = new();
     private readonly FakeBookingClient _booking = new();
@@ -48,7 +50,7 @@ public class SyncReservationStatusCommandHandlerTests
         _requests.Items.Add(_local);
 
         _handler = new SyncReservationStatusCommandHandler(
-            _requests, _seats, _booking, _clock,
+            _requests, _seats, _booking, new FakeCurrentUserAccessor(CurrentUserId), _clock,
             Options.Create(new ReservationSyncOptions { PendingTimeoutMinutes = 10 }),
             NullLogger<SyncReservationStatusCommandHandler>.Instance);
     }
@@ -56,7 +58,7 @@ public class SyncReservationStatusCommandHandlerTests
     private SeatRequest NewRequest(ReservationStatus status) => new()
     {
         ReservationId = Guid.NewGuid(), SeatId = _seat.SeatId, EventId = _seat.EventId, SeatNumber = "A-1",
-        UserId = Guid.NewGuid(), Price = 15000m, Status = status,
+        UserId = CurrentUserId, Price = 15000m, Status = status,
         RequestedAtUtc = _clock.GetUtcNow().UtcDateTime, CorrelationId = "corr"
     };
 
@@ -292,5 +294,36 @@ public class SyncReservationStatusCommandHandlerTests
         Assert.Equal(ReservationStatus.Rejected, result.Status);
         Assert.Equal(ReservationStatus.Rejected, _local.Status);
         Assert.Equal(1, _requests.SaveCalls);
+    }
+
+    // ---------- identidad (TD-4): solo el dueño ve su reserva ----------
+
+    private SyncReservationStatusCommandHandler HandlerFor(Guid? userId) => new(
+        _requests, _seats, _booking, new FakeCurrentUserAccessor(userId), _clock,
+        Options.Create(new ReservationSyncOptions { PendingTimeoutMinutes = 10 }),
+        NullLogger<SyncReservationStatusCommandHandler>.Instance);
+
+    [Fact]
+    public async Task Sync_ReservationOfAnotherUser_ThrowsNotFound_WithoutCallingBooking_OrWriting()
+    {
+        BookingSays(ReservationStatus.Rejected);
+        _clock.Advance(TimeSpan.FromMinutes(60));
+
+        var ex = await Assert.ThrowsAsync<ReservationNotFoundException>(
+            () => HandlerFor(Guid.NewGuid()).Handle(new SyncReservationStatusCommand(_local.ReservationId), default));
+
+        Assert.Equal("reservation.not_found", ex.Code);
+        Assert.Empty(_booking.Calls);
+        Assert.Equal(0, _requests.SaveCalls);
+        Assert.False(_seat.IsAvailable);
+    }
+
+    [Fact]
+    public async Task Sync_WithoutAuthenticatedUser_ThrowsNotFound()
+    {
+        await Assert.ThrowsAsync<ReservationNotFoundException>(
+            () => HandlerFor(null).Handle(new SyncReservationStatusCommand(_local.ReservationId), default));
+
+        Assert.Empty(_booking.Calls);
     }
 }

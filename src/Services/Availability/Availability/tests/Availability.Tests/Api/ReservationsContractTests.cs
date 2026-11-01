@@ -7,6 +7,7 @@ using Availability.Application.Exceptions;
 using Availability.Application.Messaging;
 using Availability.Domain.Enums;
 using Availability.Infrastructure.Persistence;
+using Availability.Tests.Support;
 using Microsoft.Extensions.DependencyInjection;
 using SeatsReservation.Contracts.Events;
 
@@ -26,7 +27,7 @@ public class ReservationsContractTests : IClassFixture<AvailabilityApiFactory>
     {
         _factory = factory;
         _factory.Publisher.Reset();
-        _client = factory.CreateClient();
+        _client = factory.CreateAuthenticatedClient();
     }
 
     private Task<string> CreateAvailableSeatAsync() => _factory.CreateAvailableSeatAsync();
@@ -35,7 +36,7 @@ public class ReservationsContractTests : IClassFixture<AvailabilityApiFactory>
     {
         eventId = eventId ?? SeedData.EventId,
         seatNumber = seat,
-        userId = userId ?? Guid.NewGuid(),
+        userId = userId ?? TestJwt.ClientUserId,
         price
     };
 
@@ -70,7 +71,7 @@ public class ReservationsContractTests : IClassFixture<AvailabilityApiFactory>
     public async Task Post_ValidRequest_PublishesEvent_AndPersistsPendingRequest()
     {
         var seat = await CreateAvailableSeatAsync();
-        var userId = Guid.NewGuid();
+        var userId = TestJwt.ClientUserId;
 
         var response = await _client.PostAsJsonAsync("/api/reservations", Body(seat, userId: userId, price: 1m));
         var id = (await ReadAsync(response)).GetProperty("reservationId").GetGuid();
@@ -139,7 +140,7 @@ public class ReservationsContractTests : IClassFixture<AvailabilityApiFactory>
     public async Task Post_MissingSeatNumber_Returns400()
     {
         var response = await _client.PostAsJsonAsync("/api/reservations",
-            new { eventId = SeedData.EventId, userId = Guid.NewGuid(), price = 1m });
+            new { eventId = SeedData.EventId, userId = TestJwt.ClientUserId, price = 1m });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Empty(_factory.Publisher.Published);

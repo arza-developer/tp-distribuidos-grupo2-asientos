@@ -6,6 +6,7 @@ using Availability.Application.Bookings;
 using Availability.Application.Exceptions;
 using Availability.Domain.Enums;
 using Availability.Infrastructure.Persistence;
+using Availability.Tests.Support;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Availability.Tests.Api;
@@ -21,7 +22,7 @@ public class ReservationStatusContractTests : IClassFixture<AvailabilityApiFacto
         _factory = factory;
         _factory.Publisher.Reset();
         _factory.Booking.Reset();
-        _client = factory.CreateClient();
+        _client = factory.CreateAuthenticatedClient();
     }
 
     private static async Task<JsonElement> ReadAsync(HttpResponseMessage r) =>
@@ -32,7 +33,7 @@ public class ReservationStatusContractTests : IClassFixture<AvailabilityApiFacto
     {
         var seat = await _factory.CreateAvailableSeatAsync();
         var response = await _client.PostAsJsonAsync("/api/reservations",
-            new { eventId = SeedData.EventId, seatNumber = seat, userId = Guid.NewGuid(), price = 15000m });
+            new { eventId = SeedData.EventId, seatNumber = seat, userId = TestJwt.ClientUserId, price = 15000m });
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         return ((await ReadAsync(response)).GetProperty("reservationId").GetGuid(), seat);
     }
@@ -123,7 +124,7 @@ public class ReservationStatusContractTests : IClassFixture<AvailabilityApiFacto
 
     private Task<HttpResponseMessage> PostAgainAsync(string seat) =>
         _client.PostAsJsonAsync("/api/reservations",
-            new { eventId = SeedData.EventId, seatNumber = seat, userId = Guid.NewGuid(), price = 15000m });
+            new { eventId = SeedData.EventId, seatNumber = seat, userId = TestJwt.ClientUserId, price = 15000m });
 
     private async Task<ReservationStatus> LocalStatusAsync(Guid reservationId)
     {
