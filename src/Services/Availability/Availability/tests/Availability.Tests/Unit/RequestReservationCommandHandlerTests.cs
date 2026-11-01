@@ -46,7 +46,8 @@ public class RequestReservationCommandHandlerTests
         _seats.Items.Add(new Seat { SeatId = Guid.NewGuid(), EventId = EventId, SeatNumber = "A-3", Price = 18000m, IsAvailable = false });
         _publisher = new FakePublisher(_requests);
         _handler = new RequestReservationCommandHandler(
-            _seats, _requests, _publisher, new FakeCorrelation(), NullLogger<RequestReservationCommandHandler>.Instance);
+            _seats, _requests, _publisher, new FakeCorrelation(), TimeProvider.System,
+            NullLogger<RequestReservationCommandHandler>.Instance);
     }
 
     private static RequestReservationCommand Cmd(string seat = "A-1", decimal price = 15000m, Guid? eventId = null, Guid? userId = null) =>

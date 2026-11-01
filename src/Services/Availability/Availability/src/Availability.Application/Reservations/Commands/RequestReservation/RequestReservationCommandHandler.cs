@@ -22,8 +22,9 @@ namespace Availability.Application.Reservations.Commands.RequestReservation;
 /// <c>Seat.IsAvailable</c> es un GUARDA LOCAL de idempotencia y concurrencia ante la consistencia eventual con
 /// Booking: al reservar se marca en <c>false</c> y un nuevo pedido para ese asiento se rechaza
 /// (<see cref="SeatUnavailableException"/>) sin llegar al broker. La exclusión mutua definitiva sigue siendo de Booking.
-/// DEUDA TÉCNICA: falta definir el flujo que devuelve el flag a <c>true</c> (p. ej. al saber que Booking
-/// rechazó o venció la reserva) y volver atómico el chequeo (ver docs/PLAN.md, "Deuda técnica").
+/// El flag vuelve a <c>true</c> al sincronizar el estado con Booking (<c>SyncReservationStatusCommand</c>, al consultar
+/// GET /api/reservations/{id}) o si falla la publicación (compensación de este handler). Falta volver atómico el
+/// chequeo (ver docs/PLAN.md, "Deuda técnica").
 /// </para>
 /// <para>
 /// Orden: guardar (Pending, asiento no disponible) → publicar. Si la publicación falla se compensa: se elimina
@@ -37,6 +38,7 @@ public sealed class RequestReservationCommandHandler(
     ISeatRequestRepository requests,
     IMessagePublisher publisher,
     ICorrelationIdAccessor correlation,
+    TimeProvider clock,
     ILogger<RequestReservationCommandHandler> logger)
     : IRequestHandler<RequestReservationCommand, ReservationAcceptedResult>
 {
@@ -65,7 +67,7 @@ public sealed class RequestReservationCommandHandler(
             UserId = command.UserId,
             Price = seat.Price,
             Status = ReservationStatus.Pending,
-            RequestedAtUtc = DateTime.UtcNow,
+            RequestedAtUtc = clock.GetUtcNow().UtcDateTime,
             CorrelationId = correlation.CorrelationId
         };
         seat.IsAvailable = false;

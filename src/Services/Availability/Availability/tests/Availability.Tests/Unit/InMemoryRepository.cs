@@ -32,7 +32,14 @@ public abstract class InMemoryRepository<T> : IGenericRepository<T> where T : En
 
     public void Remove(T entity) => Items.Remove(entity);
 
-    public Task<int> SaveChangesAsync(CancellationToken ct = default) => Task.FromResult(0);
+    /// <summary>Cantidad de veces que se pidió persistir (para verificar escrituras e idempotencia).</summary>
+    public int SaveCalls { get; private set; }
+
+    public Task<int> SaveChangesAsync(CancellationToken ct = default)
+    {
+        SaveCalls++;
+        return Task.FromResult(0);
+    }
 }
 
 public sealed class InMemorySeatRepository : InMemoryRepository<Seat>, ISeatRepository

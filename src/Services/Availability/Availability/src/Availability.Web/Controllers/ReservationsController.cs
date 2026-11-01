@@ -1,5 +1,5 @@
 using Availability.Application.Reservations.Commands.RequestReservation;
-using Availability.Application.Reservations.Queries.GetReservationStatus;
+using Availability.Application.Reservations.Commands.SyncReservationStatus;
 using Availability.Domain.Enums;
 using Availability.Web.Contracts;
 using MediatR;
@@ -37,7 +37,8 @@ public class ReservationsController(IMediator mediator) : ControllerBase
     }
 
     /// <summary>
-    /// Paso 7 del TP: estado de la reserva, consultado a Booking a través de Availability.
+    /// Paso 7 del TP: estado de la reserva, consultado a Booking a través de Availability. Además sincroniza el
+    /// estado local (y libera el asiento si Booking rechazó/venció la reserva): ver SyncReservationStatusCommandHandler.
     /// Pendiente: requerirá JWT en T4.1.
     /// </summary>
     [HttpGet("reservations/{id:guid}")]
@@ -46,7 +47,7 @@ public class ReservationsController(IMediator mediator) : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult<ReservationStatusDto>> GetStatus(Guid id, CancellationToken ct)
     {
-        var result = await mediator.Send(new GetReservationStatusQuery(id), ct);
+        var result = await mediator.Send(new SyncReservationStatusCommand(id), ct);
 
         return Ok(new ReservationStatusDto(
             result.ReservationId,

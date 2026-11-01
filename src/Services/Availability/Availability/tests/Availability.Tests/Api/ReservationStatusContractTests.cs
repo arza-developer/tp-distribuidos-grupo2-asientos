@@ -1,10 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Availability.Application.Abstractions.IRepository;
 using Availability.Application.Bookings;
 using Availability.Application.Exceptions;
 using Availability.Domain.Enums;
 using Availability.Infrastructure.Persistence;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Availability.Tests.Api;
 
@@ -117,17 +119,79 @@ public class ReservationStatusContractTests : IClassFixture<AvailabilityApiFacto
         Assert.DoesNotContain("detalle-red", text);
     }
 
-    [Fact]
-    public async Task Get_DoesNotAlterLocalState_PostAfterGetStillSeesSeatUnavailable()
+    // ---------- TD-1: el GET sincroniza el estado local y libera el asiento ----------
+
+    private Task<HttpResponseMessage> PostAgainAsync(string seat) =>
+        _client.PostAsJsonAsync("/api/reservations",
+            new { eventId = SeedData.EventId, seatNumber = seat, userId = Guid.NewGuid(), price = 15000m });
+
+    private async Task<ReservationStatus> LocalStatusAsync(Guid reservationId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var request = await scope.ServiceProvider.GetRequiredService<ISeatRequestRepository>()
+            .FirstOrDefaultAsync(r => r.ReservationId == reservationId);
+        return request!.Status;
+    }
+
+    [Theory]
+    [InlineData(ReservationStatus.Rejected)]
+    [InlineData(ReservationStatus.Expired)]
+    public async Task Get_RejectedOrExpiredByBooking_SyncsLocalStatus_AndReleasesSeat(ReservationStatus bookingStatus)
     {
         var (id, seat) = await CreateReservationAsync();
-        _factory.Booking.Result = new BookingStatusInfo(ReservationStatus.Rejected, null, seat);
+        Assert.Equal(HttpStatusCode.Conflict, (await PostAgainAsync(seat)).StatusCode); // bloqueado mientras está Pending
+        _factory.Booking.Result = new BookingStatusInfo(bookingStatus, null, seat);
 
         await _client.GetAsync($"/api/reservations/{id}");
 
-        // La query es pura: aunque Booking diga "Rejected", el asiento sigue bloqueado localmente (TD-1 pendiente).
-        var again = await _client.PostAsJsonAsync("/api/reservations",
-            new { eventId = SeedData.EventId, seatNumber = seat, userId = Guid.NewGuid(), price = 15000m });
-        Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+        Assert.Equal(bookingStatus, await LocalStatusAsync(id));
+        Assert.Equal(HttpStatusCode.Accepted, (await PostAgainAsync(seat)).StatusCode); // liberado
+    }
+
+    [Theory]
+    [InlineData(ReservationStatus.Retained)]
+    [InlineData(ReservationStatus.Confirmed)]
+    public async Task Get_RetainedOrConfirmedByBooking_SyncsLocalStatus_AndKeepsSeatBlocked(ReservationStatus bookingStatus)
+    {
+        var (id, seat) = await CreateReservationAsync();
+        _factory.Booking.Result = new BookingStatusInfo(bookingStatus, DateTime.UtcNow.AddMinutes(5), seat);
+
+        await _client.GetAsync($"/api/reservations/{id}");
+
+        Assert.Equal(bookingStatus, await LocalStatusAsync(id));
+        Assert.Equal(HttpStatusCode.Conflict, (await PostAgainAsync(seat)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Get_OrphanReservation_BookingNeverKnewIt_ExpiresAfterTimeout_AndReleasesSeat()
+    {
+        var (id, seat) = await CreateReservationAsync();
+        _factory.Booking.Result = null;
+
+        var young = await ReadAsync(await _client.GetAsync($"/api/reservations/{id}"));
+        Assert.Equal("Pending", young.GetProperty("status").GetString());
+        Assert.Equal(HttpStatusCode.Conflict, (await PostAgainAsync(seat)).StatusCode);
+
+        _factory.Clock.Advance(TimeSpan.FromMinutes(11)); // supera ReservationSync:PendingTimeoutMinutes (10)
+        var old = await ReadAsync(await _client.GetAsync($"/api/reservations/{id}"));
+
+        Assert.Equal("Expired", old.GetProperty("status").GetString());
+        Assert.Equal("La reserva venció: Booking no llegó a procesarla", old.GetProperty("message").GetString());
+        Assert.Equal(ReservationStatus.Expired, await LocalStatusAsync(id));
+        Assert.Equal(HttpStatusCode.Accepted, (await PostAgainAsync(seat)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Get_BookingDown_ChangesNothing_EvenIfTheReservationLooksOrphan()
+    {
+        var (id, seat) = await CreateReservationAsync();
+        _factory.Clock.Advance(TimeSpan.FromMinutes(60));
+        _factory.Booking.Throw = new BookingUnavailableException("caído");
+
+        var response = await _client.GetAsync($"/api/reservations/{id}");
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal(ReservationStatus.Pending, await LocalStatusAsync(id));
+        Assert.Equal(HttpStatusCode.Conflict, (await PostAgainAsync(seat)).StatusCode);
     }
 }

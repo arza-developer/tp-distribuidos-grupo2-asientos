@@ -1,6 +1,7 @@
 using Availability.Application.Abstractions;
 using Availability.Application.Abstractions.IRepository;
 using Availability.Domain.Entities;
+using Availability.Tests.Support;
 using Availability.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -23,6 +24,9 @@ public sealed class AvailabilityApiFactory : WebApplicationFactory<Program>
 
     public RecordingBookingClient Booking { get; } = new();
 
+    /// <summary>Reloj controlable (arranca en la hora real) para probar el vencimiento de reservas huérfanas.</summary>
+    public FakeTimeProvider Clock { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("ConnectionStrings:Availability", $"Data Source={_dbPath}");
@@ -33,6 +37,9 @@ public sealed class AvailabilityApiFactory : WebApplicationFactory<Program>
 
             services.RemoveAll<IBookingClient>();
             services.AddSingleton<IBookingClient>(Booking);
+
+            services.RemoveAll<TimeProvider>();
+            services.AddSingleton<TimeProvider>(Clock);
         });
     }
 

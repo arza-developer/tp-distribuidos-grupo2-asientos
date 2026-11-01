@@ -162,3 +162,14 @@ Sí, seguí con T3.4
 ```
 Sí, hacé T3.5
 ```
+
+### P32
+```
+Antes de seguir con fase 4. Profundizar con resolucion de tech debt TD-01 para limitar situaciones de seat unavailable. Tambien eliminar test UpdateRemoveTrackingTests, ya se comprobo funcionalidad de librerias ya no se necesitan
+```
+
+### P33
+```
+Por ahora sincronizar al consultar, actualizar TD-01 expresando posibles alternativas con worker de reconciliacion pero metodo get nuevo en booking que devuelva List para evitar escalado de trabajo por acumulacion
+```
+(Respuesta del usuario a la consulta sobre cómo resolver TD-1.)

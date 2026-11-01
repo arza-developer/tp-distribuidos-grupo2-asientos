@@ -1,4 +1,5 @@
 using Availability.Application;
+using Availability.Application.Reservations;
 using Availability.Infrastructure;
 using Availability.Application.Abstractions;
 using Availability.Infrastructure.Persistence;
@@ -8,6 +9,7 @@ using Availability.Web.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddApplication();
+builder.Services.Configure<ReservationSyncOptions>(builder.Configuration.GetSection(ReservationSyncOptions.SectionName));
 builder.Services.AddInfrastructure();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICorrelationIdAccessor, HttpCorrelationIdAccessor>();
