@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Availability.Application/Availability.Application.csproj" />
+    <Project Path="src/Availability.Domain/Availability.Domain.csproj" />
+    <Project Path="src/Availability.Infrastructure/Availability.Infrastructure.csproj" />
+    <Project Path="src/Availability.Web/Availability.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Availability.Tests/Availability.Tests.csproj" />
+  </Folder>
+</Solution>
