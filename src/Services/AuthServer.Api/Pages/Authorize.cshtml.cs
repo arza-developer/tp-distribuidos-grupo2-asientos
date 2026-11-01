@@ -1,6 +1,7 @@
 using AuthServer.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace AuthServer.Api.Pages;
 
@@ -10,8 +11,13 @@ namespace AuthServer.Api.Pages;
 public class AuthorizeModel : PageModel
 {
     private readonly TokenService _tokens;
+    private readonly AuthorizationCodeStore _codes;
 
-    public AuthorizeModel(TokenService tokens) => _tokens = tokens;
+    public AuthorizeModel(TokenService tokens, AuthorizationCodeStore codes)
+    {
+        _tokens = tokens;
+        _codes = codes;
+    }
 
     // Parámetros OAuth2 que manda el front en la dirección (query string).
     // SupportsGet = se leen al abrir la página. En el formulario viajan como campos ocultos.
@@ -45,8 +51,17 @@ public class AuthorizeModel : PageModel
             return Page();
         }
 
-        // [Paso B3]: acá vamos a crear el código y redirigir al front.
-        return Content($"Login correcto: {user.Username}. Falta el paso B3 (código y redirección).");
+        // [Authorization Code]: en vez de la entrada, un comprobante de retiro de un solo uso.
+        var code = _codes.Create(ClientId, RedirectUri, CodeChallenge, user.UserId, user.Role);
+
+        // Volver a la app con el código y el mismo "state" que nos mandó.
+        var callbackUrl = QueryHelpers.AddQueryString(RedirectUri, new Dictionary<string, string?>
+        {
+            ["code"] = code,
+            ["state"] = State
+        });
+
+        return Redirect(callbackUrl);
     }
 
     private bool ValidateRequest()
