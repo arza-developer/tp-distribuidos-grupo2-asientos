@@ -7,7 +7,7 @@ namespace Availability.Web.Middleware;
 
 /// <summary>
 /// Traduce excepciones a ProblemDetails por CATEGORÍA (el HTTP es una preocupación de esta capa, no del dominio):
-/// negocio inexistente → 404, negocio inválido → 400, conflicto de estado → 409, fallo técnico de mensajería → 503.
+/// negocio inexistente → 404, negocio inválido → 400, conflicto de estado → 409, fallo técnico de mensajería o de Booking → 503.
 /// Cualquier otra excepción no se maneja aquí y termina como 500 genérico, sin detalles.
 /// </summary>
 public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : IExceptionHandler
@@ -40,6 +40,16 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
                     Status = StatusCodes.Status503ServiceUnavailable,
                     Title = "Servicio no disponible",
                     Detail = "No se pudo encolar la solicitud. Intente nuevamente más tarde."
+                };
+                break;
+
+            case BookingUnavailableException e:
+                logger.LogError(e, "Fallo técnico al consultar a Booking");
+                problem = new ProblemDetails
+                {
+                    Status = StatusCodes.Status503ServiceUnavailable,
+                    Title = "Servicio no disponible",
+                    Detail = "No se pudo consultar el estado en Booking. Intente nuevamente más tarde."
                 };
                 break;
 

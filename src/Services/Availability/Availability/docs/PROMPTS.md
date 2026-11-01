@@ -132,3 +132,33 @@ Antes confirmar si metodos update y delete de EF ejecutan la accion contra bbdd 
 ```
 corregir punto 1 y punto 2. Anotar como tech debt definir flujo para volver Seat.IsAvailable, este flag es para robustecer guard de idempotencia y concurrencia ante posibles estados de consistencia eventual con booking
 ```
+
+### P26
+```
+Sí, detallá Fase 3
+```
+
+### P27
+```
+Realizar puntos 3.1 y 3.2
+```
+
+### P28
+```
+Aprobar plan e implementar hasta punto 3.2
+```
+
+### P29
+```
+Sí, seguí con T3.3
+```
+
+### P30
+```
+Sí, seguí con T3.4
+```
+
+### P31
+```
+Sí, hacé T3.5
+```

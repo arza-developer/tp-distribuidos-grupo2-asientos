@@ -1,10 +1,13 @@
+using Availability.Application.Abstractions;
 using Availability.Application.Abstractions.IRepository;
+using Availability.Infrastructure.Bookings;
 using Availability.Infrastructure.Messaging;
 using Availability.Infrastructure.Persistence;
 using Availability.Infrastructure.Persistence.Repository;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using SeatsReservation.Contracts.Events;
 
 namespace Availability.Infrastructure;
@@ -24,6 +27,15 @@ public static class DependencyInjection
         // Un par IXRepository/XRepository por entidad (la base genérica no se registra).
         services.AddOptions<AzureQueueOptions>().BindConfiguration(AzureQueueOptions.SectionName);
         services.AddSingleton<IMessagePublisher, AzureQueuePublisher>();
+
+        // Booking (solo lectura): HttpClient tipado con BaseUrl y timeout corto desde la configuración.
+        services.AddOptions<BookingOptions>().BindConfiguration(BookingOptions.SectionName);
+        services.AddHttpClient<IBookingClient, BookingClient>((sp, client) =>
+        {
+            var options = sp.GetRequiredService<IOptions<BookingOptions>>().Value;
+            client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+        });
 
         services.AddScoped<ISeatRepository, SeatRepository>();
         services.AddScoped<ISeatRequestRepository, SeatRequestRepository>();

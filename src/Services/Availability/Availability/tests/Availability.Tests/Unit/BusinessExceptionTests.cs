@@ -54,6 +54,29 @@ public class BusinessExceptionTests
     }
 
     [Fact]
+    public void ReservationNotFound_IsNotFoundCategory_WithStableCodeAndIdInMessage()
+    {
+        var id = Guid.NewGuid();
+
+        var ex = new ReservationNotFoundException(id);
+
+        Assert.IsAssignableFrom<BusinessNotFoundException>(ex);
+        Assert.Equal("reservation.not_found", ex.Code);
+        Assert.Contains(id.ToString(), ex.Message);
+    }
+
+    [Fact]
+    public void BookingUnavailable_IsTechnical_NotBusiness_AndKeepsInnerException()
+    {
+        var inner = new HttpRequestException("sin red");
+
+        var ex = new BookingUnavailableException("Booking caído", inner);
+
+        Assert.IsNotAssignableFrom<BusinessException>(ex);
+        Assert.Same(inner, ex.InnerException);
+    }
+
+    [Fact]
     public void MessagePublish_IsTechnical_NotBusiness_AndKeepsInnerException()
     {
         var inner = new InvalidOperationException("boom");

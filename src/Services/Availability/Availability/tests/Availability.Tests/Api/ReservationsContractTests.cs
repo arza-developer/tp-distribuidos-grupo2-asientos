@@ -5,7 +5,6 @@ using System.Text.Json;
 using Availability.Application.Abstractions.IRepository;
 using Availability.Application.Exceptions;
 using Availability.Application.Messaging;
-using Availability.Domain.Entities;
 using Availability.Domain.Enums;
 using Availability.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,18 +29,7 @@ public class ReservationsContractTests : IClassFixture<AvailabilityApiFactory>
         _client = factory.CreateClient();
     }
 
-    private async Task<string> CreateAvailableSeatAsync()
-    {
-        var number = $"T-{Guid.NewGuid():N}"[..12];
-        using var scope = _factory.Services.CreateScope();
-        var seats = scope.ServiceProvider.GetRequiredService<ISeatRepository>();
-        await seats.AddAsync(new Seat
-        {
-            SeatId = Guid.NewGuid(), EventId = SeedData.EventId, SeatNumber = number, Price = 15000m, IsAvailable = true
-        });
-        await seats.SaveChangesAsync();
-        return number;
-    }
+    private Task<string> CreateAvailableSeatAsync() => _factory.CreateAvailableSeatAsync();
 
     private static object Body(string? seat, Guid? userId = null, Guid? eventId = null, decimal price = 15000m) => new
     {
@@ -75,6 +63,7 @@ public class ReservationsContractTests : IClassFixture<AvailabilityApiFactory>
         Assert.Equal("Pending", json.GetProperty("status").GetString());
         Assert.Equal("Solicitud recibida y encolada para procesamiento", json.GetProperty("message").GetString());
         Assert.Equal($"/api/reservations/{id}", json.GetProperty("checkStatusUrl").GetString());
+        Assert.Equal($"/api/reservations/{id}", response.Headers.Location!.OriginalString); // Location = checkStatusUrl
     }
 
     [Fact]
