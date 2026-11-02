@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using AuthServer.Api.Options;
 using AuthServer.Api.Services;
+using Microsoft.AspNetCore.WebUtilities;
 using SeatsReservation.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,6 +13,8 @@ builder.Services.AddSingleton<TokenService>();
 // [Authorization Code]: registro de comprobantes. Singleton: UNO solo para todo el AuthServer,
 // así un código creado en un pedido se encuentra en el siguiente.
 builder.Services.AddSingleton<AuthorizationCodeStore>();
+// [3rd Party IdP]: logins externos en curso (mismo motivo: singleton).
+builder.Services.AddSingleton<ExternalLoginStore>();
 builder.Services.AddJwtAuthentication(builder.Configuration);
 
 // [3rd Party IdP]: cliente HTTP para descargar el JWKS del proveedor externo.
@@ -64,7 +67,7 @@ app.MapPost("/connect/token", async (HttpRequest request, TokenService tokens, E
         return Results.Ok(new { access_token = jwt, token_type = "Bearer", expires_in = TokenService.ExpiresInSeconds });
     }
 
-    // Ventanilla 3: personas que se loguearon en el proveedor externo (3rd Party IdP, federación).
+    // Ventanilla 3: canje directo del id_token del proveedor externo (para pruebas por API).
     // [Estándar RFC 8693 - Token Exchange]: canjea el id_token del proveedor por NUESTRO access token.
     if (grantType == "urn:ietf:params:oauth:grant-type:token-exchange")
     {
@@ -104,6 +107,41 @@ app.MapPost("/connect/token", async (HttpRequest request, TokenService tokens, E
     return Results.BadRequest(new { error = "unsupported_grant_type" });
 });
 
+// [3rd Party IdP - vuelta del proveedor]: el proveedor externo devuelve acá el id_token (OIDC form_post).
+// Si todo está bien, seguimos el login del front como siempre: código de un solo uso + PKCE.
+app.MapPost("/external/callback", async (HttpRequest request, ExternalLoginStore externalLogins,
+    ExternalTokenValidator external, TokenService tokens, AuthorizationCodeStore codes) =>
+{
+    if (!request.HasFormContentType)
+        return ErrorPage("Pedido inválido.");
+
+    var form = await request.ReadFormAsync();
+
+    // 1. ¿Es la vuelta de un login que NOSOTROS empezamos? (state de un solo uso)
+    var pending = externalLogins.Take(form["state"].ToString());
+    if (pending is null)
+        return ErrorPage("El inicio de sesión venció o no es válido. Volvé a intentarlo.");
+
+    // 2. ¿El id_token es auténtico, es para nosotros y trae NUESTRO nonce?
+    var externalSub = await external.ValidateAsync(form["id_token"].ToString(), pending.Nonce);
+    if (externalSub is null)
+        return ErrorPage("No se pudo verificar tu identidad con el proveedor externo.");
+
+    // 3. ¿Esa persona está registrada en nuestra boletería?
+    var user = tokens.FindUserByExternalSubject(externalSub);
+    if (user is null)
+        return ErrorPage("Tu cuenta del proveedor externo no está registrada en la Boletería.");
+
+    // 4. Igual que el login normal: comprobante para la app, que lo canjea con su talón (PKCE).
+    var code = codes.Create(pending.ClientId, pending.RedirectUri, pending.CodeChallenge, user.UserId, user.Role);
+    var callbackUrl = QueryHelpers.AddQueryString(pending.RedirectUri, new Dictionary<string, string?>
+    {
+        ["code"] = code,
+        ["state"] = pending.FrontState
+    });
+    return Results.Redirect(callbackUrl);
+});
+
 app.MapGet("/", () => "Auth Server running on port 5104. Use POST /connect/token to get JWT.");
 
 // Criterio de aceptación: endpoint protegido. Sin token -> 401. Con token válido -> 200 y muestra sus claims.
@@ -124,3 +162,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.Run();
+
+// Página de error simple para la vuelta del proveedor (la persona la ve en el navegador).
+static IResult ErrorPage(string message) => Results.Content(
+    $"<h1>Boletería · No se pudo ingresar</h1><p>{System.Net.WebUtility.HtmlEncode(message)}</p>",
+    "text/html", statusCode: 400);
