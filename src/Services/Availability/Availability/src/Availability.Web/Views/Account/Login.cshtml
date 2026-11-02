@@ -1,0 +1,23 @@
+@model LoginViewModel
+@{
+    ViewData["Title"] = "Ingresar";
+}
+
+<h1>Ingresar</h1>
+<p class="muted">Usá tu cuenta del sistema para reservar asientos.</p>
+
+<form asp-controller="Account" asp-action="Login" method="post">
+    <input type="hidden" asp-for="ReturnUrl" />
+
+    <div asp-validation-summary="ModelOnly" class="msg error" role="alert"></div>
+
+    <label asp-for="Username"></label>
+    <input asp-for="Username" type="text" autocomplete="username" />
+    <span asp-validation-for="Username" class="field-error"></span>
+
+    <label asp-for="Password"></label>
+    <input asp-for="Password" autocomplete="current-password" />
+    <span asp-validation-for="Password" class="field-error"></span>
+
+    <button type="submit" class="btn">Ingresar</button>
+</form>
