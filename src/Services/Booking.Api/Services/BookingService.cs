@@ -171,29 +171,6 @@ namespace Booking.Api.Services
             throw new InvalidOperationException($"No se puede rechazar la reserva. " + $"Estado actual: {reservation.Status}. " + $"Motivo actual: {reservation.RejectionReason}.");
         }
 
-        public async Task<Reservation> TryExpireReservationAsync(Guid reservationId, CancellationToken cancellationToken = default)
-        {
-            // Validar el id de la reserva
-            if (reservationId == Guid.Empty)
-            {
-                throw new ArgumentException("El id de la reserva es invalido.");
-            }
-
-            // Intentar expirar la reserva en la base de datos
-            await _repository.ExpireIfDueAsync(reservationId, DateTime.UtcNow, cancellationToken);
-            
-            // Recuperamos la reserva para verificar su estado
-            var reservation = await _repository.GetByIdAsync(reservationId);
-            
-            if (reservation == null)
-            {
-                throw new KeyNotFoundException("La reserva no existe.");
-            }
-
-            // Puede estar en estado Retained, Expired o Confirmed, devolvemos la reserva
-            return reservation;
-        }
-
         // Vencer en lote todas las reservas retenidas cuyo plazo ya paso
         public Task<int> ExpireOverdueReservationsAsync(CancellationToken cancellationToken  = default)
         {

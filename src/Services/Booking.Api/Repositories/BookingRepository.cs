@@ -50,17 +50,6 @@ namespace Booking.Api.Repositories
 
         }
 
-        // Expira una reserva si ha pasado su tiempo de expiración
-        public async Task<int> ExpireIfDueAsync(Guid reservationId, DateTime nowUtc, CancellationToken cancellationToken = default)
-        {
-          return await _context.Reservations.Where(r => 
-              r.Id == reservationId &&
-              r.Status == ReservationStatus.Retained && 
-              r.ExpiresAtUtc != null &&
-              r.ExpiresAtUtc <= nowUtc)
-              .ExecuteUpdateAsync(setters => setters.SetProperty(r => r.Status, ReservationStatus.Expired), cancellationToken);
-        }
-
         // Recupera una reserva por su ID
         public async Task<Reservation?> GetByIdAsync(Guid reservationId, CancellationToken cancellationToken = default)
         {
