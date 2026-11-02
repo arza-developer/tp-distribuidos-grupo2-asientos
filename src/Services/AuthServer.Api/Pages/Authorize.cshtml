@@ -47,6 +47,19 @@
 
             <button type="submit">Ingresar</button>
         </form>
+
+        <p style="text-align: center; color: #666;">o</p>
+
+        @* [3rd Party IdP]: como "Continue with Google". asp-page-handler="External" llama a OnPostExternal *@
+        <form method="post" asp-page-handler="External">
+            <input type="hidden" name="response_type" value="@Model.ResponseType" />
+            <input type="hidden" name="client_id" value="@Model.ClientId" />
+            <input type="hidden" name="redirect_uri" value="@Model.RedirectUri" />
+            <input type="hidden" name="code_challenge" value="@Model.CodeChallenge" />
+            <input type="hidden" name="code_challenge_method" value="@Model.CodeChallengeMethod" />
+            <input type="hidden" name="state" value="@Model.State" />
+            <button type="submit">Ingresar con Proveedor Externo</button>
+        </form>
     }
 </body>
 </html>
