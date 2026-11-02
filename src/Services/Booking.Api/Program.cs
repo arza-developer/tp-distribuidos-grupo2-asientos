@@ -1,3 +1,7 @@
+using Booking.Api.Clients;
+using Microsoft.Extensions.Http.Resilience;
+using Polly;
+using SeatsReservation.Contracts.Grpc;
 using Booking.Api.Data;
 using Booking.Api.Repositories;
 using Booking.Api.Services;
@@ -6,6 +10,52 @@ using Azure.Messaging.ServiceBus;
 using Booking.Api.Workers;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services
+    .AddGrpcClient<PaymentApi.PaymentApiClient>(options =>
+        options.Address = new Uri(builder.Configuration["Services:PaymentGrpc"]
+            ?? throw new InvalidOperationException("PaymentGrpc: es obligatorio'.")))
+    .AddResilienceHandler("payment", pipeline =>
+    {
+        pipeline.AddRetry(new HttpRetryStrategyOptions
+        {
+            MaxRetryAttempts = 2,
+            BackoffType = Polly.DelayBackoffType.Exponential,
+            UseJitter = true,
+            Delay = TimeSpan.FromMilliseconds(200)
+        });
+
+        pipeline.AddCircuitBreaker(new HttpCircuitBreakerStrategyOptions
+        {
+            FailureRatio = 0.5,
+            MinimumThroughput = 5,
+            SamplingDuration = TimeSpan.FromSeconds(30),
+            BreakDuration = TimeSpan.FromSeconds(15)
+        });
+
+        pipeline.AddTimeout(TimeSpan.FromSeconds(2));
+    });
+
+builder.Services.AddScoped<IPaymentClient, PaymentClient>();
+
+builder.Services
+    .AddOptions<AuthenticationClientConfiguration>()
+    .Bind(builder.Configuration.GetSection(AuthenticationClientConfiguration.SectionName))
+    .Validate(
+        options =>
+            Uri.TryCreate(options.AuthenticationEndpoint, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps),
+        "AuthServer:AuthenticationEndpoint tiene que ser un path valido.")
+    .Validate(
+        options => !string.IsNullOrWhiteSpace(options.ClientId),
+        "AuthServer:ClientId es obligatorio.")
+    .Validate(
+        options => !string.IsNullOrWhiteSpace(options.ClientSecret),
+        "AuthServer:ClientSecret es obligatorio.")
+    .ValidateOnStart();
+
+builder.Services.AddHttpClient("AuthServer");
+builder.Services.AddSingleton<IAuthenticationClient, AuthenticationClient>();
 
 builder.Services.AddDbContext<BookingDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("BookingDataBase")));
