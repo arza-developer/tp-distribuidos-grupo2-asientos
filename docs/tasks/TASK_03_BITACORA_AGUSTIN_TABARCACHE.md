@@ -13,6 +13,21 @@ Registro de lo que se va haciendo en la tarea, tanto lo hecho por el responsable
 | 1 | `BookingQueueConsumer`: escuchar la cola de Azure Service Bus y registrar reservas | Hecho |
 | 2 | `ReservationExpirationWorker`: vencer reservas retenidas cada 15-30 s | Hecho |
 | 3 | Liberación del asiento al vencer | Resuelto por diseño y verificado (prueba 6c) |
+| 4 | Usar `IBookingService` (Tarea 02) en lugar de `IBookingRepository` desde los workers | Hecho |
+
+## Plan del trabajo 4: pasar los workers por `IBookingService`
+
+- [x] Paso 1: `BookingQueueConsumer` deja de usar el repositorio y llama a `TryRetainReservationAsync`.
+  - Hoy `HandleMessageAsync` repite la lógica de `BookingService.TryRetainReservationAsync` (idempotencia, asiento ocupado, armado e inserción de la reserva). La versión del service además valida los datos de entrada, normaliza el asiento y resuelve en el momento el conflicto por índice único.
+  - Se mapea `ReservationRequestedEvent` a `ReserveSeatRequest` (`RequestId = ReservationId`, `UserId` como `string`).
+  - Datos inválidos (`ArgumentException`) → dead-letter. Conflicto sin resolver (`ReservationUniqueConflictException`) → abandon y reintento.
+  - Arregla además un error que trajo el merge de la Tarea 02: el repositorio ahora envuelve el `DbUpdateException` del índice único en `ReservationUniqueConflictException`, así que el `catch (DbUpdateException)` actual del consumer ya no atrapa ese conflicto.
+- [x] Paso 2: `ReservationExpirationWorker` pasa por el service sin perder el vencimiento por lote.
+  - **No** se usa `TryExpireReservationAsync` en el worker. Ese método vence una reserva por id y después la vuelve a leer. Usarlo en el barrido implica buscar los ids vencidos y llamar al método por cada uno: 2N + 1 consultas por ciclo en lugar de un solo `UPDATE`. Tampoco suma validaciones, porque la única extra (`reservationId == Guid.Empty`) no aplica a ids que salen de la base. Las condiciones del `UPDATE` son las mismas en los dos métodos.
+  - **Propuesta:** agregar a `IBookingService` un método por lote (por ejemplo, `ExpireOverdueReservationsAsync`) que delegue en el repositorio, y que el worker llame a ese método. Se cumple la regla de capas y se mantiene una sola consulta.
+  - `TryExpireReservationAsync` sigue siendo útil para revisar una sola reserva, por ejemplo justo antes de mandarla a Payment.
+- [x] Paso 3: `dotnet build`, `dotnet test Booking.Tests` y repetir las pruebas 6a a 6c.
+- [x] Paso 4: commit.
 
 ## Plan del trabajo 1: `BookingQueueConsumer`
 
@@ -61,7 +76,7 @@ Registro de lo que se va haciendo en la tarea, tanto lo hecho por el responsable
 ## Dependencias con otras tareas
 
 - **Tarea 01:** publica `ReservationRequestedEvent`. Hoy usa `FakeLoggingPublisher`, así que no llegan mensajes reales; para probar se envían a mano.
-- **Tarea 02:** aporta el modelo `Reservation`, `BookingDbContext` e `IBookingRepository`.
+- **Tarea 02:** aporta el modelo `Reservation`, `BookingDbContext` e `IBookingRepository`. También aporta `IBookingService`/`BookingService`, que los workers van a usar (trabajo 4).
 
 ## Registro
 
@@ -123,3 +138,15 @@ Registro de lo que se va haciendo en la tarea, tanto lo hecho por el responsable
   - **Respuesta IA (resumen):** verificó el registro en `Program.cs`. En la consola se ve el `UPDATE` que genera `ExecuteUpdateAsync` y el log `Se vencieron 1 reservas`. En `booking.db`, la reserva `1111...` pasó de `Retained` (1) a `Expired` (4) y la `2222...` (`Rejected`) no se tocó. Prueba 6a OK. Próximo: pruebas 6b y 6c.
 - **Prompt (textual):** "perfecto paso las dos pruebas"
   - **Respuesta IA (resumen):** confirmó en `booking.db`: `3333...` (A2) pasó a `Expired` (4) al cumplirse los 5 minutos, y `4444...` (A2) quedó `Retained` (1), o sea que el asiento se liberó al vencer (trabajo 3 verificado). Detectó que git muestra `booking.db-shm` y `booking.db-wal` como archivos nuevos (los arma SQLite en modo WAL) y recomendó ignorarlos en `.gitignore` antes de commitear.
+
+### 2026-11-02
+  - **Respuesta IA (resumen):** Encontró que el merge de la Tarea 02 dejó sin efecto el `catch (DbUpdateException)` del consumer, y que el service retiene 10 minutos en lugar de 5. Explicó el paso 1 (qué, dónde, por qué y motivo del cambio) para que lo escriba el responsable.
+- **Responsable:** reescribió `HandleMessageAsync` en `BookingQueueConsumer` para usar `IBookingService.TryRetainReservationAsync`.
+- **Prompt (textual):** "listo ya lo escribi en el consumer," (pegó el paso 2 del plan del trabajo 4)
+  - **Respuesta IA (resumen):** revisó el consumer: la lógica coincide y `dotnet build` compila sin errores ni advertencias. Señaló que con `CreateAsyncScope` corresponde `await using`, y algunos errores de tipeo: el motivo de dead-letter `"InvalidaData"`, el placeholder `{ReservatioId}`, "resgistrada", "Singletone", "instacia" y `[[Patron` en lugar de `[Patron:`. Explicó el paso 2 (método por lote en el service y su uso en el worker), con el motivo del cambio.
+- **Responsable:** corrigió el consumer (volvió a `CreateScope`, motivo `InvalidData`, placeholder `{ReservationId}`, texto del log). Agregó `ExpireOverdueReservationsAsync` en `IBookingService` y `BookingService`, y el worker de vencimiento ahora llama al service.
+- **Prompt (textual):** "listo, ya arregle el consumer y escribi el paso 2"
+  - **Respuesta IA (resumen):** revisó el diff: coincide con lo explicado. `dotnet build` compila sin errores ni advertencias y `dotnet test Booking.Tests` pasa 11 de 11. Siguen los errores de tipeo en los comentarios del consumer ("Singletone", "instacia", `[[Patron`). Pasos 1 y 2 marcados. Próximo: pruebas manuales del paso 3 (la retención ahora es de 10 minutos).
+- **Responsable:** corrió las pruebas manuales del trabajo 4.
+- **Prompt (textual):** "1. se vencio una reserva apenas arranco la API. 2. idempotencia funciona 3. dio rejected al cambiar el reservation id, 4. despues del plazo de 10 minutos se vencio la reserva como corresponde. 5. re registro la nueva reserva como retainded 6. se valido al faltar el campo seatNumber con datos invalidos y enviado a dead-letter"
+  - **Respuesta IA (resumen):** confirmó en `booking.db`: `4444...` (A2) pasó a `Expired` al arrancar; `5555...` (A3) tiene una sola fila (idempotencia), quedó `Retained` con vencimiento a 10 minutos y después pasó a `Expired`; `6666...` (A3) quedó `Rejected` con motivo `SeatOccupied`; `7777...` (A3) quedó `Retained`, o sea que el asiento se liberó; `8888...` no generó fila (dead-letter). Las seis pruebas pasaron. Paso 3 marcado. Próximo: corregir los comentarios del consumer y commitear.
