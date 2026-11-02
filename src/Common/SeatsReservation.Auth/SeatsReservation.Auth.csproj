@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Da acceso a las piezas de ASP.NET Core desde una librería -->
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+		<!-- El paquete que sabe leer y verificar JWT -->
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.10" />
+	</ItemGroup>
+
+</Project>
