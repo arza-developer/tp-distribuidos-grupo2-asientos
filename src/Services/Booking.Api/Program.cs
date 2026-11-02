@@ -2,12 +2,17 @@ using Booking.Api.Data;
 using Booking.Api.Repositories;
 using Booking.Api.Services;
 using Microsoft.EntityFrameworkCore;
+using Azure.Messaging.ServiceBus;
+using Booking.Api.Workers;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<BookingDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("BookingDataBase")));
 builder.Services.AddScoped<IBookingRepository, BookingRepository>();
+builder.Services.AddSingleton(_ => new ServiceBusClient(builder.Configuration["ServiceBus:ConnectionString"]));
+builder.Services.AddHostedService<BookingQueueConsumer>();
+builder.Services.AddHostedService<ReservationExpirationWorker>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 
 // Add services to the container.
