@@ -34,6 +34,8 @@ public class AuthorizeModel : PageModel
     [BindProperty(SupportsGet = true, Name = "code_challenge")] public string CodeChallenge { get; set; } = "";
     [BindProperty(SupportsGet = true, Name = "code_challenge_method")] public string CodeChallengeMethod { get; set; } = "";
     [BindProperty(SupportsGet = true, Name = "state")] public string State { get; set; } = "";
+    // [3rd Party IdP]: si la app ya eligió el proveedor externo, salteamos nuestra página y vamos directo.
+    [BindProperty(SupportsGet = true, Name = "idp_hint")] public string IdpHint { get; set; } = "";
 
     // Lo que escribe el usuario en el formulario.
     [BindProperty] public string Username { get; set; } = "";
@@ -42,8 +44,14 @@ public class AuthorizeModel : PageModel
     public string? LoginError { get; set; }      // usuario o contraseña incorrectos: se muestra y puede reintentar
     public string? InvalidRequest { get; set; }  // el pedido del front está mal: no se muestra el formulario
 
-    // Al ABRIR la página: revisar el pedido del front y mostrar el formulario.
-    public IActionResult OnGet() => ValidateRequest() ? Page() : BadRequestPage();
+    // Al ABRIR la página: revisar el pedido del front. Si ya eligió proveedor externo, va directo.
+    public IActionResult OnGet()
+    {
+        if (!ValidateRequest()) return BadRequestPage();
+
+        // "idp_hint=external": la persona ya tocó "Ingresar con Proveedor Externo" en la app.
+        return IdpHint == "external" ? OnPostExternal() : Page();
+    }
 
     // Botón "Ingresar" (usuario y contraseña de la boletería).
     public IActionResult OnPost()
