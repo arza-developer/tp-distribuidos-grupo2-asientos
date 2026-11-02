@@ -193,5 +193,11 @@ namespace Booking.Api.Services
             // Puede estar en estado Retained, Expired o Confirmed, devolvemos la reserva
             return reservation;
         }
+
+        // Vencer en lote todas las reservas retenidas cuyo plazo ya paso
+        public Task<int> ExpireOverdueReservationsAsync(CancellationToken cancellationToken  = default)
+        {
+            return _repository.ExpireOverdueReservationsAsync(DateTime.UtcNow, cancellationToken);
+        }
     }
 }

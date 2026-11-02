@@ -1,10 +1,10 @@
 ﻿using Azure.Messaging.ServiceBus;
-using System.Text.Json;
+using Booking.Api.DTOs;
 using Booking.Api.Models;
-using Booking.Api.Models.Enums;
 using Booking.Api.Repositories;
-using Microsoft.EntityFrameworkCore;
+using Booking.Api.Services;
 using SeatsReservation.Contracts.Events;
+using System.Text.Json;
 
 namespace Booking.Api.Workers;
 
@@ -14,7 +14,6 @@ namespace Booking.Api.Workers;
 // entrega cada mensaje a una sola de ellas.
 public class BookingQueueConsumer : BackgroundService
 {
-    private static readonly TimeSpan RetentionTime = TimeSpan.FromMinutes(5);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly ServiceBusProcessor _processor;
@@ -77,44 +76,36 @@ public class BookingQueueConsumer : BackgroundService
             return;
         }
 
-        // [Patron: Unit of Work por mensaje] El worker es Singleton y el DbContext es Scoped: un scope por
-        // mensaje da DbContext y repositorio nuevos, igual que un request HTTP.
+        // [Patron: Unit of Work por mensaje] El worker es Singleton y el Service (con su DbContext) es Scoped:
+        // un scope por mensaje da instancias nuevas, igual que un request HTTP.
         using var scope = _scopeFactory.CreateScope();
-        var repository = scope.ServiceProvider.GetRequiredService<IBookingRepository>();
+        var bookingService = scope.ServiceProvider.GetRequiredService<IBookingService>();
 
-        // [Patron: Idempotent Consumer] Service Bus entrega "al menos una vez": si el mensaje llega repetido
-        // (mismo ReservationId guardado como RequestId), ya fue procesado y se descarta.
-        if (await repository.GetByRequestIdAsync(evt.ReservationId) is not null)
+        var request = new ReserveSeatRequest
         {
-            _logger.LogInformation("Reserva {ReservationId} ya procesada, se descarta", evt.ReservationId);
-            await args.CompleteMessageAsync(args.Message);
-            return;
-        }
-
-        var seatTaken = await repository.HasActiveReservationAsync(evt.EventId, evt.SeatNumber);
-        var now = DateTime.UtcNow;
-        var reservation = new Reservation
-        {
-            Id = Guid.NewGuid(),
             RequestId = evt.ReservationId,
             EventId = evt.EventId,
             SeatNumber = evt.SeatNumber,
-            UserId = evt.UserId.ToString(),
-            CreatedAtUtc = now,
-            Status = seatTaken ? ReservationStatus.Rejected : ReservationStatus.Retained,
-            ExpiresAtUtc = seatTaken ? null : now.Add(RetentionTime),
-            RejectionReason = seatTaken ? ReservationRejectionReason.SeatOccupied : null
+            UserId = evt.UserId.ToString()
         };
 
+        Reservation reservation;
         try
         {
-            await repository.AddReservationAsync(reservation, args.CancellationToken);
+            // [Patron: Idempotent Consumer] El service descarta los mensajes repetidos (mismo RequestId)
+            // y devuelve la reserva que existe
+            reservation = await bookingService.TryRetainReservationAsync(request, args.CancellationToken);
         }
-        catch (DbUpdateException ex)
+        catch (ArgumentException ex)
         {
-            // [Patron: Concurrencia optimista con indice unico] Otra replica gano la carrera y el indice
-            // unico (EventId, SeatNumber) freno el insert. Se abandona el mensaje para reintentarlo:
-            // en el proximo intento cae en idempotencia o queda Rejected por asiento ocupado.
+            // [Patron: Dead Letter Channel] Datos invalidos: reintentar no los arregla.
+            _logger.LogWarning(ex, "Reserva {ReservationId} con datos invalidos", evt.ReservationId);
+            await args.DeadLetterMessageAsync(args.Message, "InvalidData", ex.Message);
+            return;
+        }
+        catch (ReservationUniqueConflictException ex)
+        {
+            // Conflicto que el service no pudo resolver: se abandona el mensaje para reintentarlo.
             _logger.LogWarning(ex, "Conflicto al guardar la reserva {ReservationId}, se reintenta", evt.ReservationId);
             await args.AbandonMessageAsync(args.Message);
             return;

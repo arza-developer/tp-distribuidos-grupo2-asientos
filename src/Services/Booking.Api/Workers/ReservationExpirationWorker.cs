@@ -1,4 +1,4 @@
-﻿using Booking.Api.Repositories;
+﻿using Booking.Api.Services;
 
 namespace Booking.Api.Workers;
 
@@ -43,11 +43,11 @@ public class ReservationExpirationWorker : BackgroundService
     {
         try
         {
-            // Un scope por ciclo: DbContext y repositorio nuevos en cada revision
+            // Un scope por ciclo: service, repositorio y DbContext nuevos en cada revision
             using var scope = _scopeFactory.CreateScope();
-            var repository = scope.ServiceProvider.GetRequiredService<IBookingRepository>();
+            var bookingService = scope.ServiceProvider.GetRequiredService<IBookingService>();
 
-            var expiredCount = await repository.ExpireOverdueReservationsAsync(DateTime.UtcNow, stoppingToken);
+            var expiredCount = await bookingService.ExpireOverdueReservationsAsync(stoppingToken);
             if (expiredCount > 0)
             {
                 _logger.LogInformation("Se vencieron {Count} reservas", expiredCount);
