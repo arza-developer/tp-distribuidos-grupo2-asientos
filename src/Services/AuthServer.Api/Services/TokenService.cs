@@ -25,11 +25,27 @@ public sealed class TokenService
     }
 
     // Busca el cliente (microservicio) en la lista. Si no existe o el secreto no coincide, devuelve null.
+    // Busca un microservicio (cliente CON secreto). Si no existe o el secreto no coincide, devuelve null.
     public RegisteredClient? FindClient(string clientId, string clientSecret)
     {
         var client = _registry.Clients.FirstOrDefault(c => c.ClientId == clientId);
         if (client is null) return null;
+
+        // [Seguridad]: un cliente público (sin secreto) NO puede usar Client Credentials.
+        // Sin este chequeo, mandar client_secret vacío ("") coincidiría.
+        if (string.IsNullOrEmpty(client.ClientSecret)) return null;
+
         if (client.ClientSecret != clientSecret) return null;
+        return client;
+    }
+
+    // [Authorization Code]: busca un cliente público (el front) y verifica que la dirección de vuelta esté permitida.
+    public RegisteredClient? FindPublicClient(string clientId, string redirectUri)
+    {
+        var client = _registry.Clients.FirstOrDefault(c => c.ClientId == clientId);
+        if (client is null) return null;
+        if (!string.IsNullOrEmpty(client.ClientSecret)) return null; // los que tienen secreto son microservicios
+        if (!client.RedirectUris.Contains(redirectUri)) return null;  // solo direcciones registradas
         return client;
     }
 
@@ -38,9 +54,18 @@ public sealed class TokenService
     {
         var user = _registry.Users.FirstOrDefault(u => u.Username == username);
         if (user is null) return null;
+
+        // [Seguridad]: un usuario sin contraseña local solo entra por el proveedor externo.
+        // Sin este chequeo, mandar password vacío ("") coincidiría y entraría cualquiera.
+        if (string.IsNullOrEmpty(user.Password)) return null;
+
         if (user.Password != password) return null;
         return user;
     }
+
+    // [3rd Party IdP]: busca qué usuario nuestro está vinculado a ese "sub" del proveedor externo.
+    public DemoUser? FindUserByExternalSubject(string externalSubject) =>
+        _registry.Users.FirstOrDefault(u => u.ExternalSubject == externalSubject);
 
     // Arma el JWT. El rol viene de la lista, NUNCA de lo que mandó el que pide.
     public string CreateToken(string subject, string role)

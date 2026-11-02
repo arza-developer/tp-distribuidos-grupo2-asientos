@@ -11,6 +11,7 @@ COPY src/Services/Booking.Api/*.csproj ./src/Services/Booking.Api/
 COPY src/Services/Payment.Grpc/*.csproj ./src/Services/Payment.Grpc/
 COPY src/Services/AuthServer.Api/*.csproj ./src/Services/AuthServer.Api/
 COPY src/Services/Notifications.Worker/*.csproj ./src/Services/Notifications.Worker/
+COPY src/Services/ExternalIdentityProvider.Api/*.csproj ./src/Services/ExternalIdentityProvider.Api/
 
 ARG SERVICE_NAME
 

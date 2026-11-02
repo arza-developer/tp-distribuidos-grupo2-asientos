@@ -1,9 +1,10 @@
 using Microsoft.EntityFrameworkCore;
-using System.Reflection.Emit;
+
+namespace Payment.Grpc.Services;
 
 public class PaymentDbContext : DbContext
 {
-    public DbSet<PaymentTransaction> Transactions => Set<PaymentTransaction>();
+    public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
 
     public PaymentDbContext(DbContextOptions<PaymentDbContext> options) : base(options) { }
 
@@ -11,7 +12,7 @@ public class PaymentDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.Entity<PaymentTransaction>()
-            .HasIndex(t => t.TransactionId)
+            .HasIndex(t => t.CorrelationId)
             .IsUnique();
     }
 }

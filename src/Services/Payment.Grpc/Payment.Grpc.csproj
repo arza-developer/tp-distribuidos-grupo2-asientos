@@ -17,6 +17,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\Common\SeatsReservation.Contracts\SeatsReservation.Contracts.csproj" />
+		<ProjectReference Include="..\..\Common\SeatsReservation.Auth\SeatsReservation.Auth.csproj" />
 	</ItemGroup>
 
 </Project>

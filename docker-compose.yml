@@ -33,6 +33,8 @@ services:
       <<: *jwt-env
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_HTTP_PORTS: "5104"
+      # [3rd Party IdP]: adentro de Docker el proveedor se llama "external-idp", no localhost
+      ExternalIdp__Authority: "http://external-idp:5105"
     cpus: 1.0
     mem_limit: 256m
 
@@ -96,4 +98,21 @@ services:
     environment:
       DOTNET_ENVIRONMENT: "Development"
     cpus: 1.0
+    mem_limit: 256m
+
+  # 7. Proveedor de identidad externo SIMULADO (3rd Party Identity Providers del diagrama)
+  # [Decisión]: simulado, igual que Azurite simula el broker. Firma con RS256 y su propia llave privada.
+  # NO recibe la clave Jwt__Key: es un tercero, no comparte secretos con nuestro sistema.
+  external-idp:
+    build:
+      context: .
+      args:
+        SERVICE_NAME: ExternalIdentityProvider.Api
+    container_name: seats-external-idp
+    ports:
+      - "5105:5105"
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_HTTP_PORTS: "5105"
+    cpus: 0.5
     mem_limit: 256m
