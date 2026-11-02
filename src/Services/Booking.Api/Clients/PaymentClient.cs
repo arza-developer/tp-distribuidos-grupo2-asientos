@@ -31,29 +31,25 @@ public class PaymentClient : IPaymentClient
         string correlationId,
         CancellationToken ct = default)
     {
-        var token = await _authenticationClient.GetTokenAsync(ct);
-
-        _logger.LogInformation($"[AUTH CLIENT] used token {token}");
-
-        var headers = new Metadata
-        {
-            { "authorization" , $"Bearer {token}" }
-        };
-
-        var request = new PaymentRequest
-        {
-            ReservationId = reservationId.ToString(),
-            UserId = userId,
-            Amount = (double)amount,
-            CorrelationId = correlationId
-        };
-
-        _logger.LogInformation(
-            "[PAYMENT CLIENT] Enviando cobro de reserva {ReservationId}, monto {Amount}, correlación {CorrelationId}",
-            reservationId, amount, correlationId);
-
         try
         {
+            var token = await _authenticationClient.GetTokenAsync(ct);
+            var headers = new Metadata
+            {
+                { "authorization" , $"Bearer {token}" }
+            };
+
+            var request = new PaymentRequest
+            {
+                ReservationId = reservationId.ToString(),
+                UserId = userId,
+                Amount = (double)amount,
+                CorrelationId = correlationId
+            };
+
+            _logger.LogInformation(
+                "[PAYMENT CLIENT] Enviando cobro de reserva {ReservationId}, monto {Amount}, correlación {CorrelationId}",
+                reservationId, amount, correlationId);
             var response = await _client.ProcessPaymentAsync(
                 request, 
                 headers: headers,
