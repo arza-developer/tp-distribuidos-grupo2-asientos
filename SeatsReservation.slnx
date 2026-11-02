@@ -10,4 +10,5 @@
     <Project Path="src/Services/Notifications.Worker/Notifications.Worker.csproj" />
     <Project Path="src/Services/Payment.Grpc/Payment.Grpc.csproj" />
   </Folder>
+  <Project Path="Booking.Tests/Booking.Tests.csproj" Id="43ff5b80-881f-4bd2-a573-a0b27a431828" />
 </Solution>
