@@ -8,7 +8,9 @@ namespace Availability.Application.Abstractions.IRepository;
 /// cada entidad define su propia interfaz (p. ej. <see cref="ISeatRepository"/>) que la extiende
 /// y puede sumar comportamiento específico. La implementación compartida vive en un único
 /// <c>GenericRepository&lt;T&gt;</c> abstracto en Infrastructure, para no duplicar código.
-/// Las consultas se expresan por predicado; no se usa el patrón Specification.
+/// Las consultas se expresan por predicado (<c>Expression</c>) y se DEFINEN en clases estáticas por entidad dentro de
+/// <c>Application/Specification</c> (p. ej. <c>SeatSpecification.ByEventAndNumber</c>) para reutilizarlas; no se usa el patrón
+/// Specification completo (los repositorios siguen recibiendo la expresión, no una especificación).
 /// </summary>
 public interface IGenericRepository<T> where T : EntityBase
 {

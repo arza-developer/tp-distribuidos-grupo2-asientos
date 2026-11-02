@@ -1,3 +1,4 @@
+using Availability.Application.Specification;
 using Availability.Domain.Entities;
 using Availability.Domain.Enums;
 using Availability.Infrastructure.Persistence;
@@ -60,12 +61,12 @@ public class SeatRequestRepositoryTests
             await repo.AddAsync(NewRequest());
             await repo.SaveChangesAsync();
 
-            var found = await repo.FirstOrDefaultAsync(r => r.ReservationId == reservationId);
+            var found = await repo.FirstOrDefaultAsync(SeatRequestSpecification.ByReservationId(reservationId));
 
             Assert.NotNull(found);
             Assert.Equal(reservationId, found!.ReservationId);
             var unknown = Guid.NewGuid();
-            Assert.Null(await repo.FirstOrDefaultAsync(r => r.ReservationId == unknown));
+            Assert.Null(await repo.FirstOrDefaultAsync(SeatRequestSpecification.ByReservationId(unknown)));
         }
     }
 

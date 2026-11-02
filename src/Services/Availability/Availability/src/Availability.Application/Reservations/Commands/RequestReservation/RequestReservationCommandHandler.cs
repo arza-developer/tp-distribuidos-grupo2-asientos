@@ -2,6 +2,7 @@ using Availability.Application.Abstractions;
 using Availability.Application.Abstractions.IRepository;
 using Availability.Application.Exceptions;
 using Availability.Application.Messaging;
+using Availability.Application.Specification;
 using Availability.Domain.Entities;
 using Availability.Domain.Enums;
 using Availability.Domain.Exceptions;
@@ -55,7 +56,7 @@ public sealed class RequestReservationCommandHandler(
         if (currentUser.UserId != command.UserId) throw new ReservationUserMismatchException();
 
         var seatNumber = command.SeatNumber.Trim();
-        var seat = await seats.FirstOrDefaultAsync(s => s.EventId == command.EventId && s.SeatNumber == seatNumber, ct)
+        var seat = await seats.FirstOrDefaultAsync(SeatSpecification.ByEventAndNumber(command.EventId, seatNumber), ct)
                    ?? throw new SeatNotFoundException(command.EventId, seatNumber);
         if (!seat.IsAvailable) throw new SeatUnavailableException(command.EventId, seatNumber);
 

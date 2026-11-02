@@ -41,6 +41,7 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
         });
         services.AddSingleton<IAccessTokenProvider, AccessTokenProvider>();
+        services.AddSingleton<IAuthServerLoginClient, AuthServerLoginClient>(); // login de usuarios para las páginas MVC (TD-9)
         services.AddTransient<BookingAuthHandler>();
 
         // Booking (solo lectura): HttpClient tipado con BaseUrl y timeout corto desde la configuración,

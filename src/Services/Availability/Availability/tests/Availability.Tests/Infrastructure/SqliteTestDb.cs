@@ -14,7 +14,8 @@ public sealed class SqliteTestDb : IDisposable
 
     public void Dispose()
     {
-        SqliteConnection.ClearAllPools();
+        // Solo el pool de ESTA base: ClearAllPools vaciaría también las de otros tests que corren en paralelo.
+        using (var own = new SqliteConnection($"Data Source={_path}")) SqliteConnection.ClearPool(own);
         foreach (var f in new[] { _path, _path + "-shm", _path + "-wal" })
             if (File.Exists(f)) File.Delete(f);
     }

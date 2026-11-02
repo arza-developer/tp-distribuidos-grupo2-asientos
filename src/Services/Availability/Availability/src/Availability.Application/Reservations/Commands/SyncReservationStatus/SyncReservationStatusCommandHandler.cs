@@ -1,5 +1,6 @@
 using Availability.Application.Abstractions;
 using Availability.Application.Abstractions.IRepository;
+using Availability.Application.Specification;
 using Availability.Domain.Entities;
 using Availability.Domain.Enums;
 using Availability.Domain.Exceptions;
@@ -43,14 +44,11 @@ public sealed class SyncReservationStatusCommandHandler(
     ILogger<SyncReservationStatusCommandHandler> logger)
     : IRequestHandler<SyncReservationStatusCommand, ReservationStatusResult>
 {
-    private static readonly ReservationStatus[] ActiveStatuses =
-        [ReservationStatus.Pending, ReservationStatus.Retained, ReservationStatus.Confirmed];
-
     public async Task<ReservationStatusResult> Handle(SyncReservationStatusCommand command, CancellationToken ct)
     {
         // Solo se responde por reservas originadas aquí: no se reenvían ids arbitrarios a Booking.
         var reservationId = command.ReservationId;
-        var local = await requests.FirstOrDefaultAsync(r => r.ReservationId == reservationId, ct)
+        var local = await requests.FirstOrDefaultAsync(SeatRequestSpecification.ByReservationId(reservationId), ct)
                     ?? throw new ReservationNotFoundException(reservationId);
 
         // Solo el dueño ve su reserva; para los demás "no existe" (no se revela la existencia de reservas ajenas).
@@ -102,7 +100,7 @@ public sealed class SyncReservationStatusCommandHandler(
             changed = true;
         }
 
-        var seat = await seats.FirstOrDefaultAsync(s => s.SeatId == local.SeatId, ct);
+        var seat = await seats.FirstOrDefaultAsync(SeatSpecification.BySeatId(local.SeatId), ct);
         if (seat is null)
         {
             logger.LogWarning(
@@ -134,10 +132,8 @@ public sealed class SyncReservationStatusCommandHandler(
         if (target == ReservationStatus.Pending) return null;
         if (target is ReservationStatus.Retained or ReservationStatus.Confirmed) return false;
 
-        var seatId = local.SeatId;
-        var reservationId = local.ReservationId;
         var otherActive = await requests.FirstOrDefaultAsync(
-            r => r.SeatId == seatId && r.ReservationId != reservationId && ActiveStatuses.Contains(r.Status), ct);
+            SeatRequestSpecification.ActiveForSeat(local.SeatId, local.ReservationId), ct);
         return otherActive is null;
     }
 

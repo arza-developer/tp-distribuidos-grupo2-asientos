@@ -1,3 +1,4 @@
+using Availability.Application.Specification;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -88,7 +89,7 @@ public class ReservationsContractTests : IClassFixture<AvailabilityApiFactory>
 
         using var scope = _factory.Services.CreateScope();
         var stored = await scope.ServiceProvider.GetRequiredService<ISeatRequestRepository>()
-            .FirstOrDefaultAsync(r => r.ReservationId == id);
+            .FirstOrDefaultAsync(SeatRequestSpecification.ByReservationId(id));
         Assert.NotNull(stored);
         Assert.Equal(ReservationStatus.Pending, stored!.Status);
     }

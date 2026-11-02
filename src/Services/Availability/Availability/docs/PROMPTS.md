@@ -199,3 +199,50 @@ Implementar hasta punto 4.3
 ```
 Seguir con puntos T4.4 T4.5 y T4.6
 ```
+
+### P39
+```
+Detallar Fase 5
+```
+
+### P40
+```
+Formulario de login + cookie (Recommended)
+```
+(Respuesta del usuario a la consulta sobre cómo autenticar al usuario en las páginas MVC.)
+
+### P41
+```
+Implementar autenticacion por cookies a nivel general para que no se deba definir por action de controller. En vez de crear nuevo metodo en repositorio para listar seats por eventId, utilizar metodo ya presente por IGenericRepository definiendo la query a aplicar
+```
+
+### P42
+```
+Sí, seguí con T5.1
+```
+
+### P43
+```
+Sí, seguí con T5.2
+```
+
+### P44
+```
+Extraer Expressions de query a clase por entidad en nueva carpeta Specification para que sean reutilizables
+```
+
+### P45
+```
+Application/Specification (Recommended)
+```
+(Respuesta del usuario a la consulta sobre la ubicación de la carpeta Specification.)
+
+### P46
+```
+Registrar como deuda eliminar tests utilizados en transcurso de  desarrollo y dedicas a specifications para evitar insostenibilidad por escala
+```
+
+### P47
+```
+Sí, seguí con T5.3
+```

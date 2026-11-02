@@ -1,3 +1,4 @@
+using Availability.Application.Specification;
 using Availability.Domain.Entities;
 using Availability.Infrastructure.Persistence;
 using Availability.Infrastructure.Persistence.Repository;
@@ -38,7 +39,7 @@ public class SeatRepositoryTests
             var repo = new SeatRepository(db);
             var seatId = SeedData.Seats()[2].SeatId;
 
-            var seat = await repo.FirstOrDefaultAsync(s => s.SeatId == seatId);
+            var seat = await repo.FirstOrDefaultAsync(SeatSpecification.BySeatId(seatId));
 
             Assert.NotNull(seat);
             Assert.Equal("A-3", seat!.SeatNumber);

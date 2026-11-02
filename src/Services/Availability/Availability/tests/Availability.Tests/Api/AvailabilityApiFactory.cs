@@ -2,6 +2,7 @@ using Availability.Application.Abstractions;
 using Availability.Application.Abstractions.IRepository;
 using Availability.Domain.Entities;
 using Availability.Tests.Support;
+using Availability.Infrastructure.Auth;
 using Availability.Infrastructure.Persistence;
 using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Hosting;
@@ -31,6 +32,9 @@ public sealed class AvailabilityApiFactory : WebApplicationFactory<Program>
     /// <summary>Eventos de log capturados (Serilog toma este sink por DI vía ReadFrom.Services).</summary>
     public CapturingSink Logs { get; } = new();
 
+    /// <summary>Auth Server falso para el login de las páginas (password grant).</summary>
+    public FakeAuthServerLoginClient LoginClient { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("ConnectionStrings:Availability", $"Data Source={_dbPath}");
@@ -42,6 +46,9 @@ public sealed class AvailabilityApiFactory : WebApplicationFactory<Program>
 
             services.RemoveAll<IBookingClient>();
             services.AddSingleton<IBookingClient>(Booking);
+
+            services.RemoveAll<IAuthServerLoginClient>();
+            services.AddSingleton<IAuthServerLoginClient>(LoginClient);
 
             services.AddSingleton<Serilog.Core.ILogEventSink>(Logs);
 
@@ -59,6 +66,13 @@ public sealed class AvailabilityApiFactory : WebApplicationFactory<Program>
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token ?? TestJwt.ForClient());
         return client;
     }
+
+    /// <summary>Cliente de navegador: guarda cookies y NO sigue redirecciones (los tests inspeccionan cada respuesta).</summary>
+    public HttpClient CreateBrowserClient() => CreateClient(new WebApplicationFactoryClientOptions
+    {
+        AllowAutoRedirect = false,
+        HandleCookies = true
+    });
 
     /// <summary>
     /// Inserta un asiento propio y disponible (número único) para que cada test sea independiente aunque la
@@ -82,7 +96,8 @@ public sealed class AvailabilityApiFactory : WebApplicationFactory<Program>
         base.Dispose(disposing);
         if (!disposing) return;
 
-        SqliteConnection.ClearAllPools();
+        // Solo el pool de ESTA base: ClearAllPools vaciaría también las de otros tests que corren en paralelo.
+        using (var own = new SqliteConnection($"Data Source={_dbPath}")) SqliteConnection.ClearPool(own);
         foreach (var f in new[] { _dbPath, _dbPath + "-shm", _dbPath + "-wal" })
             if (File.Exists(f)) File.Delete(f);
     }

@@ -1,0 +1,66 @@
+@model CatalogViewModel
+@{
+    ViewData["Title"] = "Asientos disponibles";
+}
+
+<h1>Asientos disponibles</h1>
+
+@if (Model.InvalidEventFilter)
+{
+    <div class="msg info" role="status">El identificador de evento no es válido: se muestran todos los eventos.</div>
+}
+
+@if (!Model.CanReserve)
+{
+    <p class="muted">
+        Podés consultar los asientos sin ingresar.
+        <a href="/Account/Login?returnUrl=%2F">Ingresar para reservar</a>.
+    </p>
+}
+
+@if (Model.Events.Count == 0)
+{
+    <p>No hay asientos para mostrar.</p>
+}
+
+@foreach (var group in Model.Events)
+{
+    <section aria-label="Evento @group.EventId">
+        <h2>Evento <code>@group.EventId</code></h2>
+        <table>
+            <thead>
+                <tr><th>Asiento</th><th>Precio</th><th>Estado</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var seat in group.Seats)
+                {
+                    <tr>
+                        <td>@seat.SeatNumber</td>
+                        <td>@PriceFormat.ForDisplay(seat.Price)</td>
+                        <td>
+                            @if (seat.IsAvailable)
+                            {
+                                <span class="badge ok">Disponible</span>
+                            }
+                            else
+                            {
+                                <span class="badge off">No disponible</span>
+                            }
+                        </td>
+                        <td>
+                            @if (seat.IsAvailable && Model.CanReserve)
+                            {
+                                <form method="post" action="/Reservation/Reserve" asp-antiforgery="true">
+                                    <input type="hidden" name="eventId" value="@seat.EventId" />
+                                    <input type="hidden" name="seatNumber" value="@seat.SeatNumber" />
+                                    <input type="hidden" name="price" value="@PriceFormat.ForForm(seat.Price)" />
+                                    <button type="submit" class="btn small">Reservar</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+}

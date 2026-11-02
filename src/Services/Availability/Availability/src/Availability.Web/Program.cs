@@ -6,6 +6,7 @@ using Availability.Infrastructure.Persistence;
 using Availability.Web.Extensions;
 using Availability.Web.Logging;
 using Availability.Web.Middleware;
+using Availability.Web.Mvc.Services;
 using Availability.Web.Services;
 using Microsoft.OpenApi.Models;
 using Serilog;
@@ -34,10 +35,13 @@ builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
 // Requisito 3.e: autenticación con tokens del Auth Server (rol Client para las reservas; catálogo y /health públicos).
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddAuthProblemDetails();
+// Cookie para las páginas y esquema por defecto elegido por ruta (/api → Bearer, resto → Cookie): ver CookieAuthenticationExtensions.
+builder.Services.AddCookieAuthentication();
+builder.Services.AddScoped<SessionLoginService>();
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
-builder.Services.AddControllers();
+builder.Services.AddControllersWithViews(); // API (atributos) + páginas MVC (ruta convencional)
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -59,6 +63,7 @@ var app = builder.Build();
 // El id de correlación va primero: así también lo llevan los logs del manejador de excepciones.
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseExceptionHandler();
+app.UseStaticFiles(); // wwwroot (css del layout)
 
 // Migraciones + seed centralizados.
 using (var scope = app.Services.CreateScope())
@@ -76,6 +81,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapDefaultControllerRoute(); // páginas MVC: /{controller}/{action}
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();
 
 app.Run();

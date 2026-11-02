@@ -1,3 +1,4 @@
+using Availability.Application.Specification;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -73,7 +74,7 @@ public class UserIdentityContractTests : IClassFixture<AvailabilityApiFactory>
         var id = (await ReadAsync(response)).GetProperty("reservationId").GetGuid();
         using var scope = _factory.Services.CreateScope();
         var stored = await scope.ServiceProvider.GetRequiredService<ISeatRequestRepository>()
-            .FirstOrDefaultAsync(r => r.ReservationId == id);
+            .FirstOrDefaultAsync(SeatRequestSpecification.ByReservationId(id));
         Assert.Equal(OtherUserId, stored!.UserId);
     }
 

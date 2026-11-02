@@ -1,4 +1,5 @@
 using Availability.Application.Abstractions.IRepository;
+using Availability.Application.Specification;
 using Availability.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,6 +10,6 @@ public class SeatRepository(AvailabilityDbContext db) : GenericRepository<Seat>(
     public async Task<IReadOnlyList<Seat>> ListByEventAsync(Guid? eventId, CancellationToken ct = default) =>
         await Db.Seats
             .AsNoTracking()
-            .Where(s => eventId == null || s.EventId == eventId)
+            .Where(SeatSpecification.ForEvent(eventId))
             .ToListAsync(ct);
 }

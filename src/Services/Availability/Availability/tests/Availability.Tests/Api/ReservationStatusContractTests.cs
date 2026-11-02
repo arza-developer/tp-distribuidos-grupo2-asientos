@@ -1,3 +1,4 @@
+using Availability.Application.Specification;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -130,7 +131,7 @@ public class ReservationStatusContractTests : IClassFixture<AvailabilityApiFacto
     {
         using var scope = _factory.Services.CreateScope();
         var request = await scope.ServiceProvider.GetRequiredService<ISeatRequestRepository>()
-            .FirstOrDefaultAsync(r => r.ReservationId == reservationId);
+            .FirstOrDefaultAsync(SeatRequestSpecification.ByReservationId(reservationId));
         return request!.Status;
     }
 

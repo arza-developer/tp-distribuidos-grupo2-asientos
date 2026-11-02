@@ -1,3 +1,4 @@
+using Availability.Application.Specification;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -119,7 +120,7 @@ public class CorrelationTests : IClassFixture<AvailabilityApiFactory>
 
         using var scope = _factory.Services.CreateScope();
         var stored = await scope.ServiceProvider.GetRequiredService<ISeatRequestRepository>()
-            .FirstOrDefaultAsync(r => r.ReservationId == reservationId);
+            .FirstOrDefaultAsync(SeatRequestSpecification.ByReservationId(reservationId));
         Assert.Equal(id, stored!.CorrelationId);
     }
 
