@@ -1,7 +1,9 @@
+using AuthServer.Api.Options;
 using AuthServer.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Options;
 
 namespace AuthServer.Api.Pages;
 
@@ -12,11 +14,16 @@ public class AuthorizeModel : PageModel
 {
     private readonly TokenService _tokens;
     private readonly AuthorizationCodeStore _codes;
+    private readonly ExternalLoginStore _externalLogins;
+    private readonly ExternalIdpOptions _externalIdp;
 
-    public AuthorizeModel(TokenService tokens, AuthorizationCodeStore codes)
+    public AuthorizeModel(TokenService tokens, AuthorizationCodeStore codes,
+        ExternalLoginStore externalLogins, IOptions<ExternalIdpOptions> externalIdp)
     {
         _tokens = tokens;
         _codes = codes;
+        _externalLogins = externalLogins;
+        _externalIdp = externalIdp.Value;
     }
 
     // Parámetros OAuth2 que manda el front en la dirección (query string).
@@ -27,6 +34,8 @@ public class AuthorizeModel : PageModel
     [BindProperty(SupportsGet = true, Name = "code_challenge")] public string CodeChallenge { get; set; } = "";
     [BindProperty(SupportsGet = true, Name = "code_challenge_method")] public string CodeChallengeMethod { get; set; } = "";
     [BindProperty(SupportsGet = true, Name = "state")] public string State { get; set; } = "";
+    // [3rd Party IdP]: si la app ya eligió el proveedor externo, salteamos nuestra página y vamos directo.
+    [BindProperty(SupportsGet = true, Name = "idp_hint")] public string IdpHint { get; set; } = "";
 
     // Lo que escribe el usuario en el formulario.
     [BindProperty] public string Username { get; set; } = "";
@@ -35,10 +44,16 @@ public class AuthorizeModel : PageModel
     public string? LoginError { get; set; }      // usuario o contraseña incorrectos: se muestra y puede reintentar
     public string? InvalidRequest { get; set; }  // el pedido del front está mal: no se muestra el formulario
 
-    // Al ABRIR la página: revisar el pedido del front y mostrar el formulario.
-    public IActionResult OnGet() => ValidateRequest() ? Page() : BadRequestPage();
+    // Al ABRIR la página: revisar el pedido del front. Si ya eligió proveedor externo, va directo.
+    public IActionResult OnGet()
+    {
+        if (!ValidateRequest()) return BadRequestPage();
 
-    // Al MANDAR el formulario.
+        // "idp_hint=external": la persona ya tocó "Ingresar con Proveedor Externo" en la app.
+        return IdpHint == "external" ? OnPostExternal() : Page();
+    }
+
+    // Botón "Ingresar" (usuario y contraseña de la boletería).
     public IActionResult OnPost()
     {
         // [Seguridad]: se revisa de nuevo. Los campos ocultos se pueden modificar desde el navegador.
@@ -62,6 +77,26 @@ public class AuthorizeModel : PageModel
         });
 
         return Redirect(callbackUrl);
+    }
+
+    // Botón "Ingresar con Proveedor Externo" (como "Continue with Google").
+    // [3rd Party IdP]: anotamos el pedido del front y mandamos al navegador a la página del proveedor.
+    public IActionResult OnPostExternal()
+    {
+        if (!ValidateRequest()) return BadRequestPage();
+
+        var (externalState, nonce) = _externalLogins.Start(ClientId, RedirectUri, CodeChallenge, State);
+
+        var providerUrl = QueryHelpers.AddQueryString($"{_externalIdp.PublicUrl}/authorize", new Dictionary<string, string?>
+        {
+            ["response_type"] = "id_token",              // [OIDC - form_post]: que devuelva el id_token directo
+            ["client_id"] = _externalIdp.Audience,       // nosotros, registrados en el proveedor
+            ["redirect_uri"] = _externalIdp.CallbackUrl, // nuestra vuelta: /external/callback
+            ["state"] = externalState,                   // para reconocer NUESTRO pedido cuando vuelva
+            ["nonce"] = nonce                            // tiene que volver adentro del id_token
+        });
+
+        return Redirect(providerUrl);
     }
 
     private bool ValidateRequest()

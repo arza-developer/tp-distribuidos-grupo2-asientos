@@ -7,7 +7,6 @@ public sealed class AuthServerOptions
     public List<DemoUser> Users { get; set; } = new();
 }
 
-// Un microservicio autorizado a pedir tokens
 // Un cliente autorizado a pedir tokens: un microservicio (con secreto) o el front (público, sin secreto)
 public sealed class RegisteredClient
 {
@@ -40,7 +39,9 @@ public sealed class DemoUser
 // Tiene la misma forma que la sección "ExternalIdp": en qué proveedor externo confiamos.
 public sealed class ExternalIdpOptions
 {
-    public string Authority { get; set; } = string.Empty;  // dónde está (para descargar su JWKS)
-    public string Issuer { get; set; } = string.Empty;     // "iss" que tienen que traer sus tokens
-    public string Audience { get; set; } = string.Empty;   // "aud" que tienen que traer sus tokens
+    public string Authority { get; set; } = string.Empty;   // donde el AuthServer descarga el JWKS (en Docker: por nombre)
+    public string PublicUrl { get; set; } = string.Empty;   // donde va el NAVEGADOR de la persona (siempre localhost)
+    public string CallbackUrl { get; set; } = string.Empty; // nuestra dirección de vuelta, registrada en el proveedor
+    public string Issuer { get; set; } = string.Empty;      // "iss" que tienen que traer sus tokens
+    public string Audience { get; set; } = string.Empty;    // "aud" = nuestro client_id en el proveedor
 }
