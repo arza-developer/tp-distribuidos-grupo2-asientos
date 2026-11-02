@@ -32,7 +32,7 @@ namespace Availability.Application.Reservations.Commands.SyncReservationStatus;
 /// </list>
 /// </para>
 /// LÍMITE: solo reconcilia lo que alguien consulta; la alternativa (worker con consulta batch a Booking) está
-/// documentada en docs/PLAN.md, "Deuda técnica".
+/// documentada en docs/Plan_Availability.md, "Deuda técnica".
 /// </summary>
 public sealed class SyncReservationStatusCommandHandler(
     ISeatRequestRepository requests,

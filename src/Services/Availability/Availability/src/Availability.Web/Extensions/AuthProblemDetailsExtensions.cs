@@ -5,7 +5,7 @@ namespace Availability.Web.Extensions;
 
 /// <summary>
 /// Respuestas 401/403 con <see cref="ProblemDetails"/>, consistentes con el resto de los errores de la API.
-/// Se agrega fuera de la copia de la librería compartida (que no las provee) para poder eliminarla sin perderlas.
+/// La librería compartida (<c>SeatsReservation.Auth</c>) no las provee: se agregan aquí, en <c>PostConfigure</c> sobre JwtBearer.
 /// </summary>
 public static class AuthProblemDetailsExtensions
 {

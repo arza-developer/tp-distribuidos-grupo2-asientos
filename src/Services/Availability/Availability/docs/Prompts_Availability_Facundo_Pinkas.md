@@ -246,3 +246,23 @@ Registrar como deuda eliminar tests utilizados en transcurso de  desarrollo y de
 ```
 Sí, seguí con T5.3
 ```
+
+### P48
+```
+Sí, hacé T5.4
+```
+
+### P49
+```
+Sí, detallá Fase 6
+```
+
+### P50
+```
+No elaborar respuestas para defensa oral en punto T6.1, renombrar archivo de regitro de prompts a Prompts_Availability_Facundo_Pinkas y archivo plan a Plan_Availability. La rama debe quedar coherente sin copia de auth para mergear manualmente a develop. Los cambios necesarios para finalizar integracion y reemplazo de availability.api seran posterior a actualizar estado en develop
+```
+
+### P51
+```
+Solo ProjectReference (Recommended)
+```

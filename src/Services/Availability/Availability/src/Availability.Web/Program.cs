@@ -10,7 +10,7 @@ using Availability.Web.Mvc.Services;
 using Availability.Web.Services;
 using Microsoft.OpenApi.Models;
 using Serilog;
-using SeatsReservation.Auth; // TD-6: hoy es la copia local de Web/_SharedAuthCopy; luego será la librería compartida
+using SeatsReservation.Auth; // librería compartida src/Common/SeatsReservation.Auth (rama feature/06-auth-server-m2m)
 
 var builder = WebApplication.CreateBuilder(args);
 

@@ -10,7 +10,7 @@ namespace Availability.Web.Extensions;
 /// Así ningún controller ni action declara <c>AuthenticationSchemes</c>: alcanza con <c>[Authorize(Roles="Client")]</c> o
 /// <c>[AllowAnonymous]</c>. Una cookie no autentica la API (401 JSON) y un Bearer no abre sesión en las páginas (redirige a login).
 /// <para>
-/// Vive fuera de <c>_SharedAuthCopy</c> a propósito: esa carpeta es un espejo borrable de la librería compartida (TD-6).
+/// La librería compartida (<c>SeatsReservation.Auth</c>) solo registra Bearer y lo deja como esquema por defecto: la política por ruta se define aquí.
 /// </para>
 /// </summary>
 public static class CookieAuthenticationExtensions
@@ -43,8 +43,8 @@ public static class CookieAuthenticationExtensions
                 options.SlidingExpiration = false; // la sesión dura lo que el JWT (1 h), sin renovación
             });
 
-        // AddJwtAuthentication (copia de la librería compartida) deja JwtBearer como esquema por defecto; se redefine aquí,
-        // sin tocar esa carpeta: Configure se ejecuta después y gana.
+        // AddJwtAuthentication (librería compartida) deja JwtBearer como esquema por defecto; se redefine aquí
+        // (Configure se ejecuta después y gana).
         services.Configure<AuthenticationOptions>(options =>
         {
             options.DefaultScheme = SmartScheme;

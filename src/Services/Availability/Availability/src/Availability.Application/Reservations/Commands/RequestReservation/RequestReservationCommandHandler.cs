@@ -25,7 +25,7 @@ namespace Availability.Application.Reservations.Commands.RequestReservation;
 /// (<see cref="SeatUnavailableException"/>) sin llegar al broker. La exclusión mutua definitiva sigue siendo de Booking.
 /// El flag vuelve a <c>true</c> al sincronizar el estado con Booking (<c>SyncReservationStatusCommand</c>, al consultar
 /// GET /api/reservations/{id}) o si falla la publicación (compensación de este handler). Falta volver atómico el
-/// chequeo (ver docs/PLAN.md, "Deuda técnica").
+/// chequeo (ver docs/Plan_Availability.md, "Deuda técnica").
 /// </para>
 /// <para>
 /// IDENTIDAD (TD-4): el <c>userId</c> del body debe ser el del token (<c>sub</c> = UserId en el Auth Server); si no,
