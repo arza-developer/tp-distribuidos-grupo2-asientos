@@ -21,12 +21,13 @@ public sealed class ExternalTokenValidator
     }
 
     // Devuelve el "sub" del proveedor si el id_token es válido; null si no lo es.
-    public async Task<string?> ValidateAsync(string idToken)
+    // expectedNonce: si el login lo empezamos nosotros (botón), el id_token tiene que traer NUESTRO nonce.
+    public async Task<string?> ValidateAsync(string idToken, string? expectedNonce = null)
     {
         if (string.IsNullOrWhiteSpace(idToken)) return null;
 
         // 1. Descargar las llaves públicas del proveedor (JWKS).
-        // [Decisión TP]: se descargan en cada canje. Un login es poco frecuente; en producción se cachearían.
+        // [Decisión TP]: se descargan en cada login. Es poco frecuente; en producción se cachearían.
         string jwksJson;
         try
         {
@@ -58,6 +59,13 @@ public sealed class ExternalTokenValidator
         if (!result.IsValid)
         {
             _logger.LogWarning("[AUTH] id_token externo rechazado: {Reason}", result.Exception?.Message);
+            return null;
+        }
+
+        // 3. [OIDC - nonce]: evita que alguien reuse un id_token viejo o ajeno en nuestro login.
+        if (expectedNonce is not null && result.ClaimsIdentity.FindFirst("nonce")?.Value != expectedNonce)
+        {
+            _logger.LogWarning("[AUTH] id_token externo rechazado: el nonce no coincide");
             return null;
         }
 
