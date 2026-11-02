@@ -266,3 +266,43 @@ No elaborar respuestas para defensa oral en punto T6.1, renombrar archivo de reg
 ```
 Solo ProjectReference (Recommended)
 ```
+
+### P52
+```
+Ya se realizo pull desde develop con actualizacion de las distintas ramas. Se requiere avanzar en el reemplazo y eliminacion de Availability.api reemplazando toda referencia a ese proyecto por este proyecto, tambien rectificar dockerfile y compose en carpeta raiz tp-distribuidos-grupo2-asientos. Seguir estructura utilizada en planificacion actual por fases y tareas
+```
+
+### P53
+```
+Migrar el publisher a Service Bus (Recommended) / Cambiar el seed de Availability (Recommended)
+```
+
+### P54
+```
+Implementar tareas T7.1 y 7.2
+```
+
+### P55
+```
+continuar con paso T7.3
+```
+
+### P56
+```
+continuar con CI como esta, no modificar
+```
+
+### P57
+```
+Ejecutar T7.4
+```
+
+### P58
+```
+se agrego connection string para service bus volver a intentar punto T7.4 con booking-api
+```
+
+### P59
+```
+Corregido el .env, repetir verificación T7.4
+```

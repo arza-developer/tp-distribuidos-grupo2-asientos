@@ -56,7 +56,7 @@ public class RequestReservationCommandHandlerTests
         new(eventId ?? EventId, seat, userId ?? CurrentUserId, price);
 
     [Fact]
-    public async Task Handle_Success_PersistsPendingRequest_AndPublishesEventToBookingQueue()
+    public async Task Handle_Success_PersistsPendingRequest_AndPublishesEventToBookingTopic()
     {
         var command = Cmd();
 
@@ -69,7 +69,7 @@ public class RequestReservationCommandHandlerTests
         Assert.Equal("corr-42", stored.CorrelationId);
 
         var (message, queue) = Assert.Single(_publisher.Published);
-        Assert.Equal(QueueNames.BookingRequests, queue);
+        Assert.Equal(MessagingNames.BookingRequestsTopic, queue);
         var evt = Assert.IsType<ReservationRequestedEvent>(message);
         Assert.Equal(result.ReservationId, evt.ReservationId);
         Assert.Equal(EventId, evt.EventId);

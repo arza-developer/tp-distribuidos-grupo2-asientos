@@ -78,7 +78,7 @@ public class ReservationsContractTests : IClassFixture<AvailabilityApiFactory>
         var id = (await ReadAsync(response)).GetProperty("reservationId").GetGuid();
 
         var (message, queue) = Assert.Single(_factory.Publisher.Published);
-        Assert.Equal(QueueNames.BookingRequests, queue);
+        Assert.Equal(MessagingNames.BookingRequestsTopic, queue);
         var evt = Assert.IsType<ReservationRequestedEvent>(message);
         Assert.Equal(id, evt.ReservationId);
         Assert.Equal(SeedData.EventId, evt.EventId);

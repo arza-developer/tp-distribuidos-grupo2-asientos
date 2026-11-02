@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace Availability.Infrastructure.Messaging;
 
-/// <summary>Formato del mensaje en la cola: JSON camelCase (JsonSerializerDefaults.Web). El Base64 lo aplica el SDK.</summary>
+/// <summary>Formato del cuerpo del mensaje: JSON camelCase (JsonSerializerDefaults.Web), que es el que lee Booking.</summary>
 public static class QueueMessageSerializer
 {
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);

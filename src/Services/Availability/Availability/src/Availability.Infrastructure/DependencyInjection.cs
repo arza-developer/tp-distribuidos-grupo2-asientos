@@ -27,8 +27,8 @@ public static class DependencyInjection
         });
 
         // Un par IXRepository/XRepository por entidad (la base genérica no se registra).
-        services.AddOptions<AzureQueueOptions>().BindConfiguration(AzureQueueOptions.SectionName);
-        services.AddSingleton<IMessagePublisher, AzureQueuePublisher>();
+        services.AddOptions<ServiceBusOptions>().BindConfiguration(ServiceBusOptions.SectionName);
+        services.AddSingleton<IMessagePublisher, ServiceBusPublisher>();
 
         services.TryAddSingleton(TimeProvider.System); // el proveedor de token calcula vencimientos con el reloj inyectable
 

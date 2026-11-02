@@ -9,7 +9,7 @@ Cada integrante del equipo trabaja en su rama asignada con especificaciones 100%
 
 |   #    | Rama Git                               | Módulo Principal                            | Especificación Técnica                                          |
 |:------:|:---------------------------------------|:--------------------------------------------|:----------------------------------------------------------------|
-| **01** | `feature/01-availability-clean-arch`   | `Availability.Api` (Clean Architecture)     | [Ver Tarea 01](docs/tasks/TASK_01_AVAILABILITY_CLEAN_ARCH.md)   |
+| **01** | `feature/01-availability-clean-arch`   | `Availability` (Clean Architecture)         | [Ver Tarea 01](docs/tasks/TASK_01_AVAILABILITY_CLEAN_ARCH.md)   |
 | **02** | `feature/02-booking-core-concurrency`  | `Booking.Api` (Concurrencia y Datos)        | [Ver Tarea 02](docs/tasks/TASK_02_BOOKING_CORE_CONCURRENCY.md)  |
 | **03** | `feature/03-booking-worker-expiration` | `Booking.Api` (Worker y Vencimiento)        | [Ver Tarea 03](docs/tasks/TASK_03_BOOKING_WORKER_EXPIRATION.md) |
 | **04** | `feature/04-payment-grpc-service`      | `Payment.Grpc` (Servidor gRPC)              | [Ver Tarea 04](docs/tasks/TASK_04_PAYMENT_GRPC_SERVICE.md)      |

@@ -96,7 +96,7 @@ public sealed class RequestReservationCommandHandler(
                 Price = request.Price,
                 RequestedAtUtc = request.RequestedAtUtc,
                 CorrelationId = request.CorrelationId
-            }, QueueNames.BookingRequests, ct);
+            }, MessagingNames.BookingRequestsTopic, ct);
         }
         catch (MessagePublishException)
         {
