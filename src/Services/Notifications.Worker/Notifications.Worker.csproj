@@ -9,9 +9,12 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="10.0.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\Common\SeatsReservation.Contracts\SeatsReservation.Contracts.csproj" />
+	<ProjectReference Include="..\..\..\SeatsReservation.Observability\SeatsReservation.Observability.csproj" />
   </ItemGroup>
 </Project>

@@ -9,9 +9,11 @@ using Booking.Api.DataAccess.Repositories;
 using Booking.Api.Business.Services;
 using Microsoft.EntityFrameworkCore;
 using Azure.Messaging.ServiceBus;
+using SeatsReservation.Observability;
 using Booking.Api.Presentation.Workers;
 using Microsoft.AspNetCore.Identity;
 
+// c00cf9dbfeab24962b7a046df7dd528eaca589bd:src/Services/Booking.Api/Presentation/Program.cs
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
@@ -76,6 +78,9 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+// 3. Registrar el Middleware de Correlación al comienzo absoluto del pipeline HTTP
+app.UseSeatsObservability();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
