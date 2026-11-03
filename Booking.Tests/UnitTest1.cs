@@ -1,6 +1,4 @@
-
-using System.IO;
-using System.Linq;
+       
 using Booking.Api.Data;
 using Booking.Api.DTOs;
 using Booking.Api.Models.Enums;
@@ -8,12 +6,60 @@ using Booking.Api.Repositories;
 using Booking.Api.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Xunit;
+using Booking.Api.Exceptions;
+using Booking.Api.Clients;
 
 namespace Booking.Tests;
 
 public class BookingServiceTests
 {
+    private sealed class FakePaymentClient : IPaymentClient
+    {
+        // Podemos configurar qué resultado devolverá Payment.
+        public PaymentOutcome Outcome { get; set; } =
+            PaymentOutcome.Confirmed;
+
+        public int Calls { get; private set; }
+
+        public Guid LastReservationId { get; private set; }
+
+        public string? LastCorrelationId { get; private set; }
+
+        public decimal LastAmount { get; private set; }
+
+        public Task<PaymentResult> ProcessPaymentAsync(
+            Guid reservationId,
+            string userId,
+            decimal amount,
+            string correlationId,
+            CancellationToken ct = default)
+        {
+            Calls++;
+            LastReservationId = reservationId;
+            LastCorrelationId = correlationId;
+            LastAmount = amount;
+
+            return Task.FromResult(new PaymentResult(
+                Outcome,
+                Outcome == PaymentOutcome.Confirmed
+                    ? "test-transaction"
+                    : null,
+                Outcome == PaymentOutcome.Failed
+                    ? "Pago rechazado"
+                    : string.Empty));
+        }
+    }
+
+    // Método auxiliar para construir BookingService en los tests.
+    private static BookingService CreateService(
+        IBookingRepository repository,
+        FakePaymentClient? paymentClient = null)
+    {
+        return new BookingService(
+            repository,
+            paymentClient ?? new FakePaymentClient());
+    }
+
     [Fact]
     public async Task FreeSeat_ShouldCreateRetainedReservation()
     {
@@ -34,7 +80,7 @@ public class BookingServiceTests
 
         // Creamos las dependencias del servicio.
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         // Preparamos una solicitud de reserva.
         var request = new ReserveSeatRequest
@@ -70,7 +116,7 @@ public class BookingServiceTests
         await context.Database.MigrateAsync();
 
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         var eventId = Guid.NewGuid();
 
@@ -124,7 +170,7 @@ public class BookingServiceTests
         await context.Database.MigrateAsync();
 
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         var request = new ReserveSeatRequest
         {
@@ -199,7 +245,7 @@ public class BookingServiceTests
                 await using var context = new BookingDbContext(options);
 
                 var repository = new BookingRepository(context);
-                var service = new BookingService(repository);
+                var service = CreateService(repository);
 
                 return await service.TryRetainReservationAsync(request);
             }).ToArray();
@@ -262,7 +308,7 @@ public class BookingServiceTests
         await context.Database.MigrateAsync();
 
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         // Creamos una solicitud de reserva.
         var request = new ReserveSeatRequest
@@ -311,7 +357,7 @@ public class BookingServiceTests
         await context.Database.MigrateAsync();
 
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         var request = new ReserveSeatRequest
         {
@@ -370,7 +416,7 @@ public class BookingServiceTests
         await context.Database.MigrateAsync();
 
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         var request = new ReserveSeatRequest
         {
@@ -417,7 +463,7 @@ public class BookingServiceTests
         await context.Database.MigrateAsync();
 
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         var request = new ReserveSeatRequest
         {
@@ -439,17 +485,23 @@ public class BookingServiceTests
                     (DateTime?)pastDate));
 
         // Ejecutamos el vencimiento.
-        var expired = await service.TryExpireReservationAsync(
-            retained.Id);
+        int expiredCount = await service.ExpireOverdueReservationsAsync();
 
-        Assert.Equal(ReservationStatus.Expired, expired.Status);
+        // Debe haber vencido exactamente una reserva.
+        Assert.Equal(1, expiredCount);
 
-        // Ejecutarlo nuevamente debe ser seguro.
-        var expiredAgain = await service.TryExpireReservationAsync(
-            retained.Id);
+        // Consultamos el estado realmente guardado en SQLite.
+        var saved = await context.Reservations
+            .AsNoTracking()
+            .SingleAsync(r => r.Id == retained.Id);
 
-        Assert.Equal(ReservationStatus.Expired, expiredAgain.Status);
-        Assert.Equal(expired.Id, expiredAgain.Id);
+        Assert.Equal(ReservationStatus.Expired, saved.Status);
+
+        // Volvemos a ejecutar el método para verificar idempotencia.
+        int expiredAgain = await service.ExpireOverdueReservationsAsync();
+
+        // La reserva ya venció, no debería actualizarse nuevamente.
+        Assert.Equal(0, expiredAgain);
     }
 
 
@@ -469,7 +521,7 @@ public class BookingServiceTests
         await context.Database.MigrateAsync();
 
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         var request = new ReserveSeatRequest
         {
@@ -484,11 +536,21 @@ public class BookingServiceTests
         // Confirmamos antes del vencimiento.
         await service.ConfirmReservationAsync(retained.Id);
 
-        // Intentamos vencer la reserva.
-        var result = await service.TryExpireReservationAsync(retained.Id);
 
-        // Debe permanecer confirmada.
-        Assert.Equal(ReservationStatus.Confirmed, result.Status);
+        // Simulamos que pasó la fecha de vencimiento.
+        // La reserva ya está Confirmed.
+        await context.Reservations
+            .Where(r => r.Id == retained.Id)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(
+                    r => r.ExpiresAtUtc,
+                    (DateTime?)DateTime.UtcNow.AddMinutes(-1)));
+
+        // Ejecutamos la limpieza de reservas vencidas.
+        int expiredCount = await service.ExpireOverdueReservationsAsync();
+
+        // No debe modificar ninguna reserva confirmada.
+        Assert.Equal(0, expiredCount);
 
         var saved = await context.Reservations
             .AsNoTracking()
@@ -514,7 +576,7 @@ public class BookingServiceTests
         await context.Database.MigrateAsync();
 
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         var request = new ReserveSeatRequest
         {
@@ -538,11 +600,17 @@ public class BookingServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.ConfirmReservationAsync(retained.Id));
 
-        // El Worker realiza finalmente el vencimiento.
-        var expired = await service.TryExpireReservationAsync(
-            retained.Id);
+        // El Worker realiza el vencimiento masivo.
+        int expiredCount = await service.ExpireOverdueReservationsAsync();
 
-        Assert.Equal(ReservationStatus.Expired, expired.Status);
+        Assert.Equal(1, expiredCount);
+
+        // Comprobamos que la reserva terminó efectivamente vencida.
+        var saved = await context.Reservations
+            .AsNoTracking()
+            .SingleAsync(r => r.Id == retained.Id);
+
+        Assert.Equal(ReservationStatus.Expired, saved.Status);
     }
 
 
@@ -573,7 +641,7 @@ public class BookingServiceTests
             {
                 await setupContext.Database.MigrateAsync();
 
-                var service = new BookingService(
+                var service = CreateService(
                     new BookingRepository(setupContext));
 
                 var retained = await service.TryRetainReservationAsync(
@@ -604,7 +672,7 @@ public class BookingServiceTests
                 await start.Task;
 
                 await using var context = new BookingDbContext(options);
-                var service = new BookingService(
+                var service = CreateService(
                     new BookingRepository(context));
 
                 return await service.ConfirmReservationAsync(reservationId);
@@ -615,10 +683,11 @@ public class BookingServiceTests
                 await start.Task;
 
                 await using var context = new BookingDbContext(options);
-                var service = new BookingService(
+                var service = CreateService(
                     new BookingRepository(context));
 
-                return await service.TryExpireReservationAsync(reservationId);
+                // El nuevo método vence todas las reservas fuera de plazo.
+                return await service.ExpireOverdueReservationsAsync();
             });
 
             // Habilitamos ambas operaciones.
@@ -629,9 +698,9 @@ public class BookingServiceTests
                 async () => { await confirmTask; });
 
             // El Worker debe conseguir vencer la reserva.
-            var expired = await expireTask;
+            int expiredCount = await expireTask;
 
-            Assert.Equal(ReservationStatus.Expired, expired.Status);
+            Assert.Equal(1, expiredCount);
 
             // Verificamos el estado realmente persistido.
             await using var verification = new BookingDbContext(options);
@@ -655,5 +724,210 @@ public class BookingServiceTests
                     File.Delete(file);
             }
         }
+    }
+
+    [Fact]
+    public async Task ActiveReservation_ShouldNotExpire()
+    {
+        await using var connection =
+            new SqliteConnection("Data Source=:memory:");
+
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<BookingDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var context = new BookingDbContext(options);
+        await context.Database.MigrateAsync();
+
+        var repository = new BookingRepository(context);
+        var service = CreateService(repository);
+
+        var request = new ReserveSeatRequest
+        {
+            RequestId = Guid.NewGuid(),
+            EventId = Guid.NewGuid(),
+            SeatNumber = "A12",
+            UserId = "user-1"
+        };
+
+        // Creamos una reserva que todavía tiene tiempo disponible.
+        var retained = await service.TryRetainReservationAsync(request);
+
+        // Ejecutamos el Worker antes de su vencimiento.
+        int expiredCount = await service.ExpireOverdueReservationsAsync();
+
+        Assert.Equal(0, expiredCount);
+
+        // La reserva debe permanecer retenida.
+        var saved = await context.Reservations
+            .AsNoTracking()
+            .SingleAsync(r => r.Id == retained.Id);
+
+        Assert.Equal(ReservationStatus.Retained, saved.Status);
+    }
+
+    [Theory]
+    [InlineData(PaymentOutcome.Confirmed, ReservationStatus.Confirmed)]
+    [InlineData(PaymentOutcome.Failed, ReservationStatus.Rejected)]
+    public async Task ProcessBooking_ShouldApplyPaymentOutcome(
+        PaymentOutcome outcome,
+        ReservationStatus expectedStatus)
+    {
+        await using var connection =
+            new SqliteConnection("Data Source=:memory:");
+
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<BookingDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var context = new BookingDbContext(options);
+        await context.Database.MigrateAsync();
+
+        var paymentClient = new FakePaymentClient
+        {
+            Outcome = outcome
+        };
+
+        var service = CreateService(
+            new BookingRepository(context),
+            paymentClient);
+
+        var request = new ReserveSeatRequest
+        {
+            RequestId = Guid.NewGuid(),
+            EventId = Guid.NewGuid(),
+            SeatNumber = "A12",
+            UserId = "user-1"
+        };
+
+        decimal amount = 15000m;
+
+        // Ejecutamos el flujo completo.
+        var result = await service.ProcessBookingAsync(
+            request, amount);
+
+        Assert.Equal(expectedStatus, result.Status);
+
+        // Payment debe haber sido invocado una sola vez.
+        Assert.Equal(1, paymentClient.Calls);
+
+        // Comprobamos los parámetros enviados a Payment.
+        Assert.Equal(result.Id, paymentClient.LastReservationId);
+        Assert.Equal(
+            request.RequestId.ToString(),
+            paymentClient.LastCorrelationId);
+        Assert.Equal(amount, paymentClient.LastAmount);
+
+        // Verificamos que el estado quedó persistido.
+        var saved = await context.Reservations
+            .AsNoTracking()
+            .SingleAsync(r => r.Id == result.Id);
+
+        Assert.Equal(expectedStatus, saved.Status);
+
+        if (outcome == PaymentOutcome.Failed)
+        {
+            Assert.Equal(
+                ReservationRejectionReason.PaymentFailed,
+                saved.RejectionReason);
+        }
+    }
+
+    [Fact]
+    public async Task ProcessBooking_DuplicateConfirmedRequest_ShouldNotChargeTwice()
+    {
+        await using var connection =
+            new SqliteConnection("Data Source=:memory:");
+
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<BookingDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var context = new BookingDbContext(options);
+        await context.Database.MigrateAsync();
+
+        var paymentClient = new FakePaymentClient();
+
+        var service = CreateService(
+            new BookingRepository(context),
+            paymentClient);
+
+        var request = new ReserveSeatRequest
+        {
+            RequestId = Guid.NewGuid(),
+            EventId = Guid.NewGuid(),
+            SeatNumber = "A12",
+            UserId = "user-1"
+        };
+
+        // Primera entrega del mensaje.
+        var first = await service.ProcessBookingAsync(
+            request, 15000m);
+
+        // Azure Service Bus vuelve a entregar el mismo mensaje.
+        var second = await service.ProcessBookingAsync(
+            request, 15000m);
+
+        Assert.Equal(ReservationStatus.Confirmed, first.Status);
+        Assert.Equal(ReservationStatus.Confirmed, second.Status);
+
+        Assert.Equal(first.Id, second.Id);
+
+        // No debería solicitarse un segundo cobro.
+        Assert.Equal(1, paymentClient.Calls);
+
+        Assert.Equal(1, await context.Reservations.CountAsync());
+    }
+
+    [Fact]
+    public async Task ProcessBooking_PaymentUnavailable_ShouldKeepRetained()
+    {
+        await using var connection =
+            new SqliteConnection("Data Source=:memory:");
+
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<BookingDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var context = new BookingDbContext(options);
+        await context.Database.MigrateAsync();
+
+        var paymentClient = new FakePaymentClient
+        {
+            Outcome = PaymentOutcome.Unavailable
+        };
+
+        var service = CreateService(
+            new BookingRepository(context),
+            paymentClient);
+
+        var request = new ReserveSeatRequest
+        {
+            RequestId = Guid.NewGuid(),
+            EventId = Guid.NewGuid(),
+            SeatNumber = "A12",
+            UserId = "user-1"
+        };
+
+        await Assert.ThrowsAsync<PaymentUnavailableException>(
+            () => service.ProcessBookingAsync(request, 15000m));
+
+        // Aunque Payment no respondió, la reserva debe existir.
+        var saved = await context.Reservations
+            .AsNoTracking()
+            .SingleAsync(r => r.RequestId == request.RequestId);
+
+        Assert.Equal(ReservationStatus.Retained, saved.Status);
+        Assert.Null(saved.RejectionReason);
+
+        Assert.Equal(1, paymentClient.Calls);
     }
 }

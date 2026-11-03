@@ -5,6 +5,7 @@ using Booking.Api.Repositories;
 using Booking.Api.Services;
 using SeatsReservation.Contracts.Events;
 using System.Text.Json;
+using Booking.Api.Exceptions;
 
 namespace Booking.Api.Workers;
 
@@ -94,7 +95,15 @@ public class BookingQueueConsumer : BackgroundService
         {
             // [Patron: Idempotent Consumer] El service descarta los mensajes repetidos (mismo RequestId)
             // y devuelve la reserva que existe
-            reservation = await bookingService.TryRetainReservationAsync(request, args.CancellationToken);
+            reservation = await bookingService.ProcessBookingAsync(request, evt.Price, args.CancellationToken);
+        }
+        catch (PaymentUnavailableException ex)
+        {
+            // [Patron: Competing Consumers] El service no pudo procesar la reserva por un error de pago
+            // (por ejemplo, el servicio de pagos no esta disponible). Se abandona el mensaje para reintentarlo.
+            _logger.LogWarning(ex, "Reserva {ReservationId} no pudo procesarse por error de pago, se reintenta", evt.ReservationId);
+            await args.AbandonMessageAsync(args.Message);
+            return;
         }
         catch (ArgumentException ex)
         {
