@@ -1,7 +1,8 @@
 using Booking.Api.Business.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-using Booking.Api.Services;
-using Booking.Api.Models.Enums;
+using Microsoft.AspNetCore.Authorization;
+using Booking.Api.Business.Services;
+using Booking.Api.DataAccess.Models.Enums;
 
 namespace Booking.Api.Presentation.Controllers;
 
@@ -28,6 +29,7 @@ public class BookingsController : ControllerBase
     /// <param name="id">Identificador único de la reserva.</param>
     /// <returns>Estado actual del ciclo de vida de la reserva.</returns>
     [HttpGet("{id:guid}")]
+    [Authorize(Roles = "Service")]
     public async Task<IActionResult> GetBookingStatus(Guid id)
     {
         _logger.LogInformation("[BOOKING API] Consulta de estado para reserva {ReservationId}", id);

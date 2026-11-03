@@ -3,12 +3,14 @@ using Booking.Api.DataAccess.ExternalServices;
 using Microsoft.Extensions.Http.Resilience;
 using Polly;
 using SeatsReservation.Contracts.Grpc;
+using SeatsReservation.Auth;
 using Booking.Api.DataAccess.Data;
 using Booking.Api.DataAccess.Repositories;
 using Booking.Api.Business.Services;
 using Microsoft.EntityFrameworkCore;
 using Azure.Messaging.ServiceBus;
 using Booking.Api.Presentation.Workers;
+using Microsoft.AspNetCore.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -39,6 +41,7 @@ builder.Services
 
 builder.Services.AddScoped<IPaymentClient, PaymentClient>();
 
+builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services
     .AddOptions<AuthenticationClientConfiguration>()
     .Bind(builder.Configuration.GetSection(AuthenticationClientConfiguration.SectionName))
@@ -58,8 +61,7 @@ builder.Services
 builder.Services.AddHttpClient("AuthServer");
 builder.Services.AddSingleton<IAuthenticationClient, AuthenticationClient>();
 
-builder.Services.AddDbContext<BookingDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("BookingDataBase")));
+builder.Services.AddDbContext<BookingDbContext>(options => options.UseSqlite(builder.Configuration.GetConnectionString("BookingDataBase")));
 builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 builder.Services.AddSingleton(_ => new ServiceBusClient(builder.Configuration["ServiceBus:ConnectionString"]));
 builder.Services.AddHostedService<BookingQueueConsumer>();
@@ -75,6 +77,12 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<BookingDbContext>();
+    await dbContext.Database.MigrateAsync();
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -84,6 +92,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
