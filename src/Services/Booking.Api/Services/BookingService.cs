@@ -226,5 +226,15 @@ namespace Booking.Api.Services
                     throw new InvalidOperationException($"Resultado de pago desconocido: {paymentResult.Outcome}");
             }
         }
+
+        public async Task<Reservation?> GetBookingStatusAsync(Guid requestId)
+        {
+            if (requestId == Guid.Empty)
+            {
+                throw new ArgumentException("El identificador de la solicitud es invalido.");
+            } 
+            
+            return await _repository.GetByRequestIdAsync(requestId);
+        }
     }
 }
