@@ -1,3 +1,6 @@
+using Serilog;
+using Serilog.Context;
+
 namespace Notifications.Worker;
 
 public class Worker : BackgroundService
@@ -13,11 +16,30 @@ public class Worker : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            if (_logger.IsEnabled(LogLevel.Information))
+            // Simulación: Aquí extraerías el CorrelationId del mensaje de la cola de Azurite
+            // Usando por ejemplo: MessageCorrelationExtensions.ExtractCorrelationId(properties)
+            string correlationId = Guid.NewGuid().ToString();
+
+            // Inyectamos el CorrelationId en el contexto de log de este bloque
+            using (LogContext.PushProperty("CorrelationId", correlationId))
             {
-                _logger.LogInformation("Worker running at: {time}", DateTimeOffset.Now);
+                Log.Information("INICIO: Procesando notificación en segundo plano.");
+
+                try
+                {
+                    // Lógica para enviar la notificación (Email, Push, etc.)
+                    await Task.Delay(1000, stoppingToken);
+
+                    Log.Information("FIN: Notificación procesada y enviada exitosamente.");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "FIN (Error): Falló el envío de la notificación.");
+                }
             }
-            await Task.Delay(1000, stoppingToken);
+
+            // Espera antes del próximo ciclo de lectura de la cola
+            await Task.Delay(5000, stoppingToken);
         }
     }
 }

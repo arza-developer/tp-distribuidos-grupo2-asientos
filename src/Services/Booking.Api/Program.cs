@@ -8,7 +8,7 @@ using Booking.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Azure.Messaging.ServiceBus;
 using Booking.Api.Workers;
-
+using SeatsReservation.Observability;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
@@ -74,6 +74,9 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+// 3. Registrar el Middleware de Correlación al comienzo absoluto del pipeline HTTP
+app.UseSeatsObservability();
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -82,9 +85,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
