@@ -306,3 +306,73 @@ se agrego connection string para service bus volver a intentar punto T7.4 con bo
 ```
 Corregido el .env, repetir verificación T7.4
 ```
+
+### P60
+```
+Cuales eran las tareas T6.1, T6.2 y T6.4
+```
+
+### P61
+```
+Descartar tarea T6.1 y en T6.2 el ajustar script, no generar ESCENARIOS.md
+```
+
+### P62
+```
+(Aprobación del plan de T6.2/T6.4: "Descartar tarea T6.1 y en T6.2 el ajustar script, no generar ESCENARIOS.md")
+```
+
+### P63
+```
+Ajustar el test
+```
+
+### P64
+```
+Avanzar con deuda tecnica TD-11
+```
+
+### P65
+```
+Tier completo del plan
+```
+
+### P66
+```
+Relevar estado actual del sistema para identificar amenazas en implementaciones y tareas pendientes, identificando por componente y si es elemento interno o correponde a interfaces entre componentes. Jerarquizar por importancia las amenazas. Esto va en nuevo documento por fuera del utilizado hasta ahora
+```
+
+### P67
+```
+Guardarlo por fuera del repo / Severidad Crítica/Alta/Media/Baja + ranking (Recommended)
+```
+
+### P68
+```
+Documentos del usuario
+```
+
+### P69
+```
+Sumar un nuevo punto en el plan de Availability. Se debe implementar autenticación por IdP, explorar auth server e IdP para comprobar si Availability debe redirigir a IdP, y recibe token callback desde auth o si Availability recibe callback y debe hacer pasamanos a auth
+```
+
+### P70
+```
+Implementar puntos 1 y 2
+```
+
+### P71
+```
+Ejecutar tareas T8.1 y T8.2
+```
+
+### P72
+```
+Ejecutar tareas pendientes y sumar una nueva tarea de limpieza para eliminar test de andamiaje
+```
+
+### P73
+```
+Agreguar anchor que permita al usuario autenticado ir a status desde Home cuando existe reservation para seat donde corresponda usuario id
+```

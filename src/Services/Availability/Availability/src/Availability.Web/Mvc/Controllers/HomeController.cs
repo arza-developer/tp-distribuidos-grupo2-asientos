@@ -1,3 +1,4 @@
+using Availability.Application.Reservations.Queries.GetMyReservations;
 using Availability.Application.Seats.Queries.GetSeatCatalog;
 using Availability.Web.Mvc.Models;
 using Availability.Web.Mvc.Services;
@@ -19,6 +20,9 @@ public class HomeController(IMediator mediator) : MvcControllerBase
         var filter = invalidFilter ? null : eventId;
 
         var catalog = await mediator.Send(new GetSeatCatalogQuery(filter), ct);
+        var canReserve = User.IsInRole(SessionLoginService.RequiredRole);
+        // Solo con sesión: para cada asiento donde el usuario tiene una reserva se ofrece el enlace a su estado.
+        var mine = canReserve ? await mediator.Send(new GetMyReservationsQuery(), ct) : [];
 
         return View(new CatalogViewModel
         {
@@ -29,7 +33,8 @@ public class HomeController(IMediator mediator) : MvcControllerBase
                 .ToList(),
             FilteredEventId = filter,
             InvalidEventFilter = invalidFilter,
-            CanReserve = User.IsInRole(SessionLoginService.RequiredRole)
+            CanReserve = canReserve,
+            MyReservations = mine
         });
     }
 }
