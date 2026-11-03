@@ -3,40 +3,49 @@ using AuthServer.Api.Options;
 using AuthServer.Api.Services;
 using Microsoft.AspNetCore.WebUtilities;
 using SeatsReservation.Auth;
+using System.Text;
+using Microsoft.IdentityModel.Tokens;
+using Serilog;
+using System.IdentityModel.Tokens.Jwt;
+using SeatsReservation.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// 1. Configurar Serilog para leer desde appsettings.json y capturar logs estructurados
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+
+// 2. Registrar los servicios de observabilidad transversales (LogContext, etc.)
+builder.Services.AddSeatsObservability();
 
 // Registro de servicios: le decimos a .NET qué piezas existen.
 builder.Services.Configure<AuthServerOptions>(builder.Configuration.GetSection("AuthServer"));
 builder.Services.Configure<ExternalIdpOptions>(builder.Configuration.GetSection("ExternalIdp"));
 builder.Services.AddSingleton<TokenService>();
-// [Authorization Code]: registro de comprobantes. Singleton: UNO solo para todo el AuthServer,
-// así un código creado en un pedido se encuentra en el siguiente.
 builder.Services.AddSingleton<AuthorizationCodeStore>();
-// [3rd Party IdP]: logins externos en curso (mismo motivo: singleton).
 builder.Services.AddSingleton<ExternalLoginStore>();
 builder.Services.AddJwtAuthentication(builder.Configuration);
 
-// [3rd Party IdP]: cliente HTTP para descargar el JWKS del proveedor externo.
 builder.Services.AddHttpClient<ExternalTokenValidator>(c => c.Timeout = TimeSpan.FromSeconds(5));
-
-// [Clase 6 - Razor Pages]: la página de login de la boletería (Authorization Code).
 builder.Services.AddRazorPages();
 
 var app = builder.Build();
 
-// Fail fast: creamos TokenService al arrancar, así si falta la clave explota acá y no en el primer pedido.
+// 3. Registrar el Middleware de Correlación al comienzo absoluto del pipeline HTTP
+app.UseSeatsObservability();
+
 app.Services.GetRequiredService<TokenService>();
 
-// [Clase 12]: primero autenticación (¿quién sos?), después autorización (¿qué podés hacer?).
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapRazorPages();
 
-// Paso 2 de la consigna y requisito 3.e: emisión de tokens (OAuth2)
-app.MapPost("/connect/token", async (HttpRequest request, TokenService tokens, ExternalTokenValidator external, AuthorizationCodeStore codes) =>
+// Endpoint de emisión de tokens OAuth2 unificado
+app.MapPost("/connect/token", async (HttpRequest request, TokenService tokens, ExternalTokenValidator external, AuthorizationCodeStore codes, IConfiguration configuration) =>
 {
-    // OAuth2 dice que el pedido va como formulario, no como JSON.
     if (!request.HasFormContentType)
         return Results.BadRequest(new { error = "invalid_request" });
 
@@ -46,36 +55,66 @@ app.MapPost("/connect/token", async (HttpRequest request, TokenService tokens, E
     // Ventanilla 1: microservicios (Client Credentials, requisito 3.e)
     if (grantType == "client_credentials")
     {
-        var client = tokens.FindClient(form["client_id"].ToString(), form["client_secret"].ToString());
+        var clientId = form["client_id"].ToString();
+        var clientSecret = form["client_secret"].ToString();
+
+        var client = tokens.FindClient(clientId, clientSecret);
         if (client is null)
             return Results.Json(new { error = "invalid_client" }, statusCode: 401);
 
-        var jwt = tokens.CreateToken(client.ClientId, client.Role);
-        return Results.Ok(new { access_token = jwt, token_type = "Bearer", expires_in = TokenService.ExpiresInSeconds });
+        Serilog.Log.Information("INICIO: Emitiendo token JWT para el cliente {ClientId}", clientId);
+
+        var secretKey = configuration["Jwt:SecretKey"] ?? "clave_por_defecto_muy_segura_123";
+        var key = Encoding.UTF8.GetBytes(secretKey);
+
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, clientId),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new("role", client.Role ?? "Client")
+        };
+
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(claims),
+            Expires = DateTime.UtcNow.AddHours(2),
+            Issuer = "SeatsReservation.AuthServer",
+            Audience = "SeatsReservation.Microservices",
+            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+        };
+
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var token = tokenHandler.CreateToken(tokenDescriptor);
+        var jwtString = tokenHandler.WriteToken(token);
+
+        Serilog.Log.Information("FIN: Token JWT emitido exitosamente para {ClientId}", clientId);
+
+        return Results.Ok(new
+        {
+            access_token = jwtString,
+            token_type = "Bearer",
+            expires_in = 7200
+        });
     }
 
-    // Ventanilla 2: personas con usuario local (Password Grant).
-    // [Simplificación TP]: este flujo no está entre los vigentes (Clase 12). Lo dejamos solo para pruebas.
+    // Ventanilla 2: personas con usuario local (Password Grant)
     if (grantType == "password")
     {
         var user = tokens.FindUser(form["username"].ToString(), form["password"].ToString());
         if (user is null)
             return Results.BadRequest(new { error = "invalid_grant" });
 
-        // El "sub" es el UserId: así Availability sabe quién reserva sin creerle al body.
         var jwt = tokens.CreateToken(user.UserId, user.Role);
         return Results.Ok(new { access_token = jwt, token_type = "Bearer", expires_in = TokenService.ExpiresInSeconds });
     }
 
-    // Ventanilla 3: canje directo del id_token del proveedor externo (para pruebas por API).
-    // [Estándar RFC 8693 - Token Exchange]: canjea el id_token del proveedor por NUESTRO access token.
+    // Ventanilla 3: canje directo del id_token del proveedor externo
     if (grantType == "urn:ietf:params:oauth:grant-type:token-exchange")
     {
         var externalSub = await external.ValidateAsync(form["subject_token"].ToString());
         if (externalSub is null)
             return Results.BadRequest(new { error = "invalid_grant", error_description = "id_token externo inválido o vencido" });
 
-        // El proveedor dice QUIÉN es. Nuestro sistema decide QUÉ puede hacer (UserId y rol propios).
         var user = tokens.FindUserByExternalSubject(externalSub);
         if (user is null)
             return Results.BadRequest(new { error = "invalid_grant", error_description = "usuario externo no registrado en el sistema" });
@@ -84,19 +123,16 @@ app.MapPost("/connect/token", async (HttpRequest request, TokenService tokens, E
         return Results.Ok(new { access_token = jwt, token_type = "Bearer", expires_in = TokenService.ExpiresInSeconds });
     }
 
-    // Ventanilla 4: el front canjea el comprobante de retiro (Authorization Code + PKCE, Clase 12).
+    // Ventanilla 4: el front canjea el comprobante de retiro (Authorization Code + PKCE)
     if (grantType == "authorization_code")
     {
-        // Se saca del registro AUNQUE después falle algo: un código sirve una sola vez, para bien o para mal.
         var entry = codes.Redeem(form["code"].ToString());
         if (entry is null)
             return Results.BadRequest(new { error = "invalid_grant", error_description = "código inválido, vencido o ya usado" });
 
-        // Lo tiene que canjear la MISMA app, con la MISMA dirección de vuelta que lo pidió.
         if (entry.ClientId != form["client_id"].ToString() || entry.RedirectUri != form["redirect_uri"].ToString())
             return Results.BadRequest(new { error = "invalid_grant", error_description = "client_id o redirect_uri no coinciden" });
 
-        // [PKCE]: ¿encaja el talón? Si alguien robó el código, no tiene el code_verifier.
         if (!AuthorizationCodeStore.VerifyPkce(form["code_verifier"].ToString(), entry.CodeChallenge))
             return Results.BadRequest(new { error = "invalid_grant", error_description = "code_verifier no coincide (PKCE)" });
 
@@ -105,10 +141,12 @@ app.MapPost("/connect/token", async (HttpRequest request, TokenService tokens, E
     }
 
     return Results.BadRequest(new { error = "unsupported_grant_type" });
-});
+})
+.WithName("GetToken")
+.WithSummary("[Paso 2 y 3.e]: Emisión de tokens de autenticación JWT")
+.WithDescription("Genera tokens simétricos HS256 tanto para usuarios finales como para comunicación servicio a servicio (M2M).");
 
-// [3rd Party IdP - vuelta del proveedor]: el proveedor externo devuelve acá el id_token (OIDC form_post).
-// Si todo está bien, seguimos el login del front como siempre: código de un solo uso + PKCE.
+// [3rd Party IdP - vuelta del proveedor]
 app.MapPost("/external/callback", async (HttpRequest request, ExternalLoginStore externalLogins,
     ExternalTokenValidator external, TokenService tokens, AuthorizationCodeStore codes) =>
 {
@@ -117,22 +155,18 @@ app.MapPost("/external/callback", async (HttpRequest request, ExternalLoginStore
 
     var form = await request.ReadFormAsync();
 
-    // 1. ¿Es la vuelta de un login que NOSOTROS empezamos? (state de un solo uso)
     var pending = externalLogins.Take(form["state"].ToString());
     if (pending is null)
         return ErrorPage("El inicio de sesión venció o no es válido. Volvé a intentarlo.");
 
-    // 2. ¿El id_token es auténtico, es para nosotros y trae NUESTRO nonce?
     var externalSub = await external.ValidateAsync(form["id_token"].ToString(), pending.Nonce);
     if (externalSub is null)
         return ErrorPage("No se pudo verificar tu identidad con el proveedor externo.");
 
-    // 3. ¿Esa persona está registrada en nuestra boletería?
     var user = tokens.FindUserByExternalSubject(externalSub);
     if (user is null)
         return ErrorPage("Tu cuenta del proveedor externo no está registrada en la Boletería.");
 
-    // 4. Igual que el login normal: comprobante para la app, que lo canjea con su talón (PKCE).
     var code = codes.Create(pending.ClientId, pending.RedirectUri, pending.CodeChallenge, user.UserId, user.Role);
     var callbackUrl = QueryHelpers.AddQueryString(pending.RedirectUri, new Dictionary<string, string?>
     {
@@ -144,13 +178,11 @@ app.MapPost("/external/callback", async (HttpRequest request, ExternalLoginStore
 
 app.MapGet("/", () => "Auth Server running on port 5104. Use POST /connect/token to get JWT.");
 
-// Criterio de aceptación: endpoint protegido. Sin token -> 401. Con token válido -> 200 y muestra sus claims.
+// Endpoint protegido de prueba
 app.MapGet("/connect/whoami", (ClaimsPrincipal user) =>
     Results.Ok(user.Claims.Select(c => new { c.Type, c.Value })))
     .RequireAuthorization();
 
-// [Solo desarrollo]: hace de "app del recital" para probar sin front.
-// Muestra el código que devolvió la boletería. Cuando exista el front, su dirección reemplaza a esta.
 if (app.Environment.IsDevelopment())
 {
     app.MapGet("/test/callback", (string? code, string? state) =>
@@ -163,7 +195,8 @@ if (app.Environment.IsDevelopment())
 
 app.Run();
 
-// Página de error simple para la vuelta del proveedor (la persona la ve en el navegador).
 static IResult ErrorPage(string message) => Results.Content(
     $"<h1>Boletería · No se pudo ingresar</h1><p>{System.Net.WebUtility.HtmlEncode(message)}</p>",
     "text/html", statusCode: 400);
+
+public record TokenRequestDto(string? ClientId, string? ClientSecret, string? Role);
