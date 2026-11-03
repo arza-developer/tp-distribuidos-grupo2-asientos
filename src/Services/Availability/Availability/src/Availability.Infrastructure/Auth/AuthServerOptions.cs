@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.DataProtection;
+
 namespace Availability.Infrastructure.Auth;
 
 /// <summary>
@@ -14,7 +16,7 @@ public class AuthServerOptions
     public string BaseUrl { get; set; } = "http://localhost:5104";
 
     /// <summary>Cliente registrado en el Auth Server (rama feature/06-auth-server-m2m: rol Service).</summary>
-    public string ClientId { get; set; } = "availability-api";
+    public string ClientId { get; set; } = "availability";
 
     public string ClientSecret { get; set; } = string.Empty;
 
