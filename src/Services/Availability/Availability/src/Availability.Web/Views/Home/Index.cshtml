@@ -48,6 +48,10 @@
                             }
                         </td>
                         <td>
+                            @if (Model.ReservationFor(seat) is { } mine)
+                            {
+                                <a class="btn small" href="/Reservation/Status/@mine.ReservationId">Ver estado</a>
+                            }
                             @if (seat.IsAvailable && Model.CanReserve)
                             {
                                 <form method="post" action="/Reservation/Reserve" asp-antiforgery="true">

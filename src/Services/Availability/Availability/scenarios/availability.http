@@ -103,3 +103,15 @@ Authorization: Bearer {{token}}
 ### F9. Auth Server caído (docker compose stop auth-server; reiniciar availability) → GET de estado 503 (el JWT se valida local, falla el token M2M)
 GET {{availabilityUrl}}/api/reservations/{{reservationId}}
 Authorization: Bearer {{token}}
+
+# ==================================================================
+# LOGIN FEDERADO POR EL IDP EXTERNO (páginas MVC; requiere navegador)
+# ==================================================================
+# No se puede ejecutar desde este archivo (interviene el navegador y un formulario con form_post). Recorrido manual:
+#   1. Abrir http://localhost:5101/Account/Login y pulsar «Ingresar con proveedor externo».
+#   2. Availability redirige al Auth Server (/connect/authorize con PKCE S256 e idp_hint=external) y este al IdP (puerto 5105).
+#   3. Ingresar con la cuenta del IdP asociada a un usuario del sistema (ana@ejemplo.com); juan@ejemplo.com no está registrado
+#      y el Auth Server lo rechaza.
+#   4. El IdP devuelve el id_token al Auth Server (nunca a Availability); este vuelve a http://localhost:5101/Account/Callback
+#      con un code de un solo uso, que Availability canjea por su cuenta. Se abre la sesión y /Account/Profile muestra el sub.
+# Versión automática (curl): scripts/live-check.sh, escenarios E1-E8.

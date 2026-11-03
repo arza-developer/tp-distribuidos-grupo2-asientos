@@ -32,9 +32,28 @@ public sealed class FakeAuthServerLoginClient : IAuthServerLoginClient
         return Task.FromResult(Tokens.TryGetValue((username, password), out var token) ? token : null);
     }
 
+    /// <summary>Códigos de autorización conocidos (code → access token); se consumen al canjearlos, como en el Auth Server real.</summary>
+    public Dictionary<string, string> Codes { get; } = new();
+
+    public List<(string Code, string Verifier, string RedirectUri, string ClientId)> Exchanges { get; } = [];
+
+    public Task<string?> ExchangeCodeAsync(string code, string codeVerifier, string redirectUri, string clientId,
+        string correlationId, CancellationToken ct = default)
+    {
+        lock (Exchanges) Exchanges.Add((code, codeVerifier, redirectUri, clientId));
+        if (Throw is not null) throw Throw;
+        lock (Codes)
+        {
+            if (!Codes.Remove(code, out var token)) return Task.FromResult<string?>(null);
+            return Task.FromResult<string?>(token);
+        }
+    }
+
     public void Reset()
     {
         Throw = null;
         lock (Calls) Calls.Clear();
+        lock (Exchanges) Exchanges.Clear();
+        lock (Codes) Codes.Clear();
     }
 }

@@ -1,4 +1,5 @@
 using System.Globalization;
+using Availability.Application.Reservations.Queries.GetMyReservations;
 using Availability.Application.Seats.Queries.GetSeatCatalog;
 
 namespace Availability.Web.Mvc.Models;
@@ -18,6 +19,13 @@ public sealed class CatalogViewModel
 
     /// <summary>Solo un usuario con sesión y rol Client ve los botones Reservar.</summary>
     public bool CanReserve { get; init; }
+
+    /// <summary>Última reserva del usuario por asiento (vacío si no hay sesión): permite enlazar el asiento con su estado.</summary>
+    public IReadOnlyList<MyReservationItem> MyReservations { get; init; } = [];
+
+    /// <summary>La reserva del usuario para ese asiento, si existe.</summary>
+    public MyReservationItem? ReservationFor(SeatCatalogItem seat) =>
+        MyReservations.FirstOrDefault(r => r.EventId == seat.EventId && r.SeatNumber == seat.SeatNumber);
 
     public int AvailableCount => Events.Sum(e => e.Seats.Count(s => s.IsAvailable));
 }

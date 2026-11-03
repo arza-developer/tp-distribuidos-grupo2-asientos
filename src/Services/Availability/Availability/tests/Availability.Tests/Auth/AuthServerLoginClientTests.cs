@@ -133,4 +133,58 @@ public class AuthServerLoginClientTests
         Assert.DoesNotContain(_logger.Entries, e => e.Message.Contains("clave-super-secreta") || e.Message.Contains("token-secreto"));
         Assert.Contains(_logger.Entries, e => e.Level == LogLevel.Information && e.Message.Contains("cliente1"));
     }
+
+    [Fact]
+    public async Task ExchangeCode_Success_ReturnsTheToken_PostingFormEncodedAuthorizationCodeGrant()
+    {
+        var (client, handler) = CreateReturning(HttpStatusCode.OK, """{"access_token":"el-token","token_type":"Bearer","expires_in":3600}""");
+
+        var token = await client.ExchangeCodeAsync("cod-1", "verif-1", "http://localhost:5101/Account/Callback", "frontend", "corr-1");
+
+        Assert.Equal("el-token", token);
+        var (request, body) = Assert.Single(handler.Calls);
+        Assert.Equal(HttpMethod.Post, request.Method);
+        Assert.Equal("http://auth.test/connect/token", request.RequestUri!.ToString());
+        Assert.Equal("application/x-www-form-urlencoded", request.Content!.Headers.ContentType!.MediaType);
+        Assert.Equal("grant_type=authorization_code&code=cod-1&code_verifier=verif-1&client_id=frontend" +
+                     "&redirect_uri=http%3A%2F%2Flocalhost%3A5101%2FAccount%2FCallback", body);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    public async Task ExchangeCode_RejectedCode_ReturnsNull_NotAnException(HttpStatusCode status)
+    {
+        var (client, _) = CreateReturning(status, """{"error":"invalid_grant"}""");
+
+        Assert.Null(await client.ExchangeCodeAsync("usado", "v", "http://x/cb", "frontend", "c"));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task ExchangeCode_AuthServerErrors_ThrowAuthServerUnavailable(HttpStatusCode status)
+    {
+        var (client, _) = CreateReturning(status, "{}");
+
+        await Assert.ThrowsAsync<AuthServerUnavailableException>(() => client.ExchangeCodeAsync("c", "v", "http://x/cb", "frontend", "c"));
+    }
+
+    [Fact]
+    public async Task ExchangeCode_NetworkFailure_ThrowsAuthServerUnavailable()
+    {
+        var (client, _) = Create((_, _) => throw new HttpRequestException("connection refused"));
+
+        await Assert.ThrowsAsync<AuthServerUnavailableException>(() => client.ExchangeCodeAsync("c", "v", "http://x/cb", "frontend", "c"));
+    }
+
+    [Fact]
+    public async Task ExchangeCode_DoesNotLogCodeNorVerifier()
+    {
+        var (client, _) = CreateReturning(HttpStatusCode.BadRequest, """{"error":"invalid_grant"}""");
+
+        await client.ExchangeCodeAsync("CODIGO-SECRETO", "VERIFIER-SECRETO", "http://x/cb", "frontend", "c");
+
+        Assert.DoesNotContain(_logger.Entries, e => e.Message.Contains("CODIGO-SECRETO") || e.Message.Contains("VERIFIER-SECRETO"));
+    }
 }

@@ -351,3 +351,28 @@ Guardarlo por fuera del repo / Severidad Crítica/Alta/Media/Baja + ranking (Rec
 ```
 Documentos del usuario
 ```
+
+### P69
+```
+Sumar un nuevo punto en el plan de Availability. Se debe implementar autenticación por IdP, explorar auth server e IdP para comprobar si Availability debe redirigir a IdP, y recibe token callback desde auth o si Availability recibe callback y debe hacer pasamanos a auth
+```
+
+### P70
+```
+Implementar puntos 1 y 2
+```
+
+### P71
+```
+Ejecutar tareas T8.1 y T8.2
+```
+
+### P72
+```
+Ejecutar tareas pendientes y sumar una nueva tarea de limpieza para eliminar test de andamiaje
+```
+
+### P73
+```
+Agreguar anchor que permita al usuario autenticado ir a status desde Home cuando existe reservation para seat donde corresponda usuario id
+```
