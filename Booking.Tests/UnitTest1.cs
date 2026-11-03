@@ -1,13 +1,13 @@
        
-using Booking.Api.Data;
-using Booking.Api.DTOs;
-using Booking.Api.Models.Enums;
-using Booking.Api.Repositories;
-using Booking.Api.Services;
+using Booking.Api.DataAccess.Data;
+using Booking.Api.Business.DTOs;
+using Booking.Api.DataAccess.Models.Enums;
+using Booking.Api.DataAccess.Repositories;
+using Booking.Api.Business.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Booking.Api.Exceptions;
-using Booking.Api.Clients;
+using Booking.Api.Core.Exceptions;
+using Booking.Api.Business.Interfaces;
 
 namespace Booking.Tests;
 
