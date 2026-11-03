@@ -8,13 +8,11 @@ using Booking.Api.DataAccess.Repositories;
 using Booking.Api.Business.Services;
 using Microsoft.EntityFrameworkCore;
 using Azure.Messaging.ServiceBus;
-<<<<<<< HEAD:src/Services/Booking.Api/Program.cs
-using Booking.Api.Workers;
 using SeatsReservation.Observability;
-=======
+//
 using Booking.Api.Presentation.Workers;
 
->>>>>>> c00cf9dbfeab24962b7a046df7dd528eaca589bd:src/Services/Booking.Api/Presentation/Program.cs
+// c00cf9dbfeab24962b7a046df7dd528eaca589bd:src/Services/Booking.Api/Presentation/Program.cs
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
