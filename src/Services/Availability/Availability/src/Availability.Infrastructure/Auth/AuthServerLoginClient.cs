@@ -33,7 +33,7 @@ public sealed class AuthServerLoginClient(IHttpClientFactory httpClientFactory, 
                     ["password"] = password
                 })
             };
-            request.Headers.Add("X-Correlation-ID", correlationId);
+            //request.Headers.Add("X-Correlation-ID", correlationId);
 
             using var response = await http.SendAsync(request, ct);
 
