@@ -1,0 +1,105 @@
+### Escenarios de Availability (REST Client / httpyac). Requiere: docker compose up -d availability
+### (auth-server 5104, booking-api 5102+, availability 5101) y SERVICEBUS_CONNECTION_STRING en .env para el 202.
+### Versión automática de estos escenarios: scripts/live-check.sh
+
+@authUrl = http://localhost:5104
+@availabilityUrl = http://localhost:5101
+@eventId = 3fa85f64-5717-4562-b3fc-2c963f66afa6
+@userId = 7bb85f64-1111-2222-3333-2c963f66af99
+@otherUserId = 9dd07a86-7777-8888-9999-4e185a88c1bb
+
+# ==================================================================
+# SUITE HAPPY PATH
+# ==================================================================
+
+### H0. Login de usuario (password grant, solo pruebas) → JWT con rol Client
+# @name login
+POST {{authUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&username=cliente1&password=cliente1-dev
+
+###
+@token = {{login.response.body.access_token}}
+
+### H1. Catálogo público (sin token) → 200
+GET {{availabilityUrl}}/api/seats
+
+### H2. Reservar B-1 → 202 Accepted + Location (Booking aún no decidió: consistencia eventual)
+# @name reserve
+POST {{availabilityUrl}}/api/reservations
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "eventId": "{{eventId}}", "seatNumber": "B-1", "userId": "{{userId}}", "price": 12000.0 }
+
+###
+@reservationId = {{reserve.response.body.reservationId}}
+
+### H3. Estado → 200 (Pending hasta que Booking procese; luego Retained). Repetir hasta Retained
+GET {{availabilityUrl}}/api/reservations/{{reservationId}}
+Authorization: Bearer {{token}}
+
+# ==================================================================
+# SUITE FALLOS
+# ==================================================================
+
+### F1. Sin token → 401
+POST {{availabilityUrl}}/api/reservations
+Content-Type: application/json
+
+{ "eventId": "{{eventId}}", "seatNumber": "A-1", "userId": "{{userId}}", "price": 15000.0 }
+
+### F2. Rol equivocado (token M2M de servicio, rol Service) → 403
+# @name serviceLogin
+POST {{authUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&client_id=availability&client_secret=availability-secret-dev
+
+###
+POST {{availabilityUrl}}/api/reservations
+Authorization: Bearer {{serviceLogin.response.body.access_token}}
+Content-Type: application/json
+
+{ "eventId": "{{eventId}}", "seatNumber": "A-1", "userId": "{{userId}}", "price": 15000.0 }
+
+### F3. userId distinto del sub del token → 403
+POST {{availabilityUrl}}/api/reservations
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "eventId": "{{eventId}}", "seatNumber": "A-1", "userId": "{{otherUserId}}", "price": 15000.0 }
+
+### F4. Asiento inexistente → 404
+POST {{availabilityUrl}}/api/reservations
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "eventId": "{{eventId}}", "seatNumber": "Z-9", "userId": "{{userId}}", "price": 15000.0 }
+
+### F5. Asiento no disponible (A-3 sembrado ocupado, o B-1 ya reservado en H2) → 409
+POST {{availabilityUrl}}/api/reservations
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "eventId": "{{eventId}}", "seatNumber": "A-3", "userId": "{{userId}}", "price": 18000.0 }
+
+### F6. Reserva inexistente (o ajena) → 404
+GET {{availabilityUrl}}/api/reservations/00000000-0000-0000-0000-000000000001
+Authorization: Bearer {{token}}
+
+### F7. Broker no disponible (levantar availability con SERVICEBUS_CONNECTION_STRING vacío) → 503 y el asiento queda libre
+POST {{availabilityUrl}}/api/reservations
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "eventId": "{{eventId}}", "seatNumber": "A-2", "userId": "{{userId}}", "price": 15000.0 }
+
+### F8. Booking caído (docker compose stop booking-api) → GET de estado 503; no se libera el asiento
+GET {{availabilityUrl}}/api/reservations/{{reservationId}}
+Authorization: Bearer {{token}}
+
+### F9. Auth Server caído (docker compose stop auth-server; reiniciar availability) → GET de estado 503 (el JWT se valida local, falla el token M2M)
+GET {{availabilityUrl}}/api/reservations/{{reservationId}}
+Authorization: Bearer {{token}}

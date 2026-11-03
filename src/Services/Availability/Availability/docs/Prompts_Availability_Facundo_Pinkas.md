@@ -306,3 +306,33 @@ se agrego connection string para service bus volver a intentar punto T7.4 con bo
 ```
 Corregido el .env, repetir verificación T7.4
 ```
+
+### P60
+```
+Cuales eran las tareas T6.1, T6.2 y T6.4
+```
+
+### P61
+```
+Descartar tarea T6.1 y en T6.2 el ajustar script, no generar ESCENARIOS.md
+```
+
+### P62
+```
+(Aprobación del plan de T6.2/T6.4: "Descartar tarea T6.1 y en T6.2 el ajustar script, no generar ESCENARIOS.md")
+```
+
+### P63
+```
+Ajustar el test
+```
+
+### P64
+```
+Avanzar con deuda tecnica TD-11
+```
+
+### P65
+```
+Tier completo del plan
+```

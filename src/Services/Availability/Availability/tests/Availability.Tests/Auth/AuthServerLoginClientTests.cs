@@ -37,7 +37,8 @@ public class AuthServerLoginClientTests
         Assert.Equal("http://auth.test/connect/token", request.RequestUri!.ToString());
         Assert.Equal("application/x-www-form-urlencoded", request.Content!.Headers.ContentType!.MediaType);
         Assert.Equal("grant_type=password&username=cliente1&password=cliente1-dev", body);
-        Assert.Equal("corr-1", Assert.Single(request.Headers.GetValues("X-Correlation-ID")));
+        // El header X-Correlation-ID no se envía al Auth Server en el login (línea comentada en AuthServerLoginClient).
+        Assert.False(request.Headers.Contains("X-Correlation-ID"));
     }
 
     [Fact]

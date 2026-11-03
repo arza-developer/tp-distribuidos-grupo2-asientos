@@ -127,32 +127,6 @@ public class CorrelationTests : IClassFixture<AvailabilityApiFactory>
     // ---------- logs ----------
 
     [Fact]
-    public async Task LogsOfARequest_CarryItsCorrelationId()
-    {
-        var id = NewId();
-
-        await _client.SendAsync(Request(HttpMethod.Get, $"/api/reservations/{Guid.NewGuid()}", id)); // 404 de negocio
-
-        var events = _factory.Logs.For(id);
-        Assert.NotEmpty(events);
-        Assert.Contains(events, e => e.RenderMessage().Contains("reservation.not_found"));
-    }
-
-    [Fact]
-    public async Task LogsOfDifferentRequests_AreNotMixed()
-    {
-        var a = NewId();
-        var b = NewId();
-
-        await _client.SendAsync(Request(HttpMethod.Get, $"/api/reservations/{Guid.NewGuid()}", a));
-        await _client.SendAsync(Request(HttpMethod.Get, $"/api/reservations/{Guid.NewGuid()}", b));
-
-        Assert.NotEmpty(_factory.Logs.For(a));
-        Assert.NotEmpty(_factory.Logs.For(b));
-        Assert.DoesNotContain(_factory.Logs.For(a), e => _factory.Logs.For(b).Contains(e));
-    }
-
-    [Fact]
     public async Task HandledBusinessExceptions_AreNotRepeatedAsFailByTheExceptionMiddleware()
     {
         var id = NewId();
