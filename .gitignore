@@ -481,6 +481,9 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 
+# Base de datos local de Booking
+/src/Services/Booking.Api/booking.db*
+
 #SQLite databases
 *.db
 *.db-shm
