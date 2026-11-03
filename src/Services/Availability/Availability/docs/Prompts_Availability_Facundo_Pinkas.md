@@ -336,3 +336,18 @@ Avanzar con deuda tecnica TD-11
 ```
 Tier completo del plan
 ```
+
+### P66
+```
+Relevar estado actual del sistema para identificar amenazas en implementaciones y tareas pendientes, identificando por componente y si es elemento interno o correponde a interfaces entre componentes. Jerarquizar por importancia las amenazas. Esto va en nuevo documento por fuera del utilizado hasta ahora
+```
+
+### P67
+```
+Guardarlo por fuera del repo / Severidad Crítica/Alta/Media/Baja + ranking (Recommended)
+```
+
+### P68
+```
+Documentos del usuario
+```
