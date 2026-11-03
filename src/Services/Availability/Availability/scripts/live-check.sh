@@ -73,6 +73,10 @@ wait_health() {
   done
   return 1
 }
+# Valor del header X-Correlation-ID que devuelve el catálogo cuando se le envía <id> en la request.
+corr_header_for() {
+  curl -s -D - -o /dev/null -H "X-Correlation-ID: $1" $AV/api/seats | tr -d '\r' | sed -n 's/^[Xx]-[Cc]orrelation-[Ii][Dd]: //p'
+}
 get_status() { code $AV/api/reservations/$1 -H "Authorization: Bearer $TOKEN"; }
 
 # ---- Login federado (Authorization Code + PKCE vía Auth Server → IdP externo) -------------------------------------
@@ -126,6 +130,12 @@ record "F3 userId ajeno al del token → 403" 403 "$(reserve "$TOKEN" A-1 $OTHER
 record "F4 asiento inexistente → 404" 404 "$(reserve "$TOKEN" Z-9 $USER_ID)"
 record "F5 asiento no disponible (A-3 sembrado) → 409" 409 "$(reserve "$TOKEN" A-3 $USER_ID)"
 record "C1 catálogo público → 200" 200 "$(code $AV/api/seats)"
+
+# ---- Correlación (req. 3.f, librería compartida SeatsReservation.Observability) ----------------------------------
+record "C2 el X-Correlation-ID entrante vuelve en la respuesta" abc-123 "$(corr_header_for 'abc-123')"
+UNSAFE_ECHO="$(corr_header_for '<script>x</script>')"
+case "$UNSAFE_ECHO" in ""|*script*) C3=no;; *) C3=ok;; esac
+record "C3 un id con caracteres inseguros se reemplaza por uno generado" ok "$C3"
 
 # ---- Login federado por el IdP externo (no requiere broker) -------------------------------------------------------
 ANA_ID=9dd07a86-7777-8888-9999-4e185a88c1bb   # usuario de Availability asociado al sub externo ext-1001
