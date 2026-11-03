@@ -1,9 +1,13 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using AuthServer.Api.Options;
+using AuthServer.Api.Services;
+using Microsoft.AspNetCore.WebUtilities;
+using SeatsReservation.Auth;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
-using SeatsReservation.Observability; // <-- Namespace de tu librería de observabilidad
+using System.IdentityModel.Tokens.Jwt;
+using SeatsReservation.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,62 +21,182 @@ builder.Host.UseSerilog();
 // 2. Registrar los servicios de observabilidad transversales (LogContext, etc.)
 builder.Services.AddSeatsObservability();
 
-builder.Services.AddEndpointsApiExplorer();
+// Registro de servicios: le decimos a .NET qué piezas existen.
+builder.Services.Configure<AuthServerOptions>(builder.Configuration.GetSection("AuthServer"));
+builder.Services.Configure<ExternalIdpOptions>(builder.Configuration.GetSection("ExternalIdp"));
+builder.Services.AddSingleton<TokenService>();
+builder.Services.AddSingleton<AuthorizationCodeStore>();
+builder.Services.AddSingleton<ExternalLoginStore>();
+builder.Services.AddJwtAuthentication(builder.Configuration);
+
+builder.Services.AddHttpClient<ExternalTokenValidator>(c => c.Timeout = TimeSpan.FromSeconds(5));
+builder.Services.AddRazorPages();
 
 var app = builder.Build();
 
 // 3. Registrar el Middleware de Correlación al comienzo absoluto del pipeline HTTP
 app.UseSeatsObservability();
 
-// [Decisión de Seguridad]: Clave simétrica compartida (HS256) para validación local de ultra-baja latencia
-const string SecretKey = "SeatsReservation-Super-Secret-Key-University-Project-2026!";
+app.Services.GetRequiredService<TokenService>();
 
-// [Paso 2 y Requisito 3.e]: Endpoint de emisión de tokens JWT para usuarios y microservicios (M2M)
-app.MapPost("/connect/token", (TokenRequestDto dto) =>
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapRazorPages();
+
+// Endpoint de emisión de tokens OAuth2 unificado
+app.MapPost("/connect/token", async (HttpRequest request, TokenService tokens, ExternalTokenValidator external, AuthorizationCodeStore codes, IConfiguration configuration) =>
 {
-    // Opcional: Puedes usar Log.Information aquí y el CorrelationId saldrá automáticamente impreso
-    Serilog.Log.Information("INICIO: Emitiendo token JWT para el cliente {ClientId}", dto.ClientId ?? "anonymous-user");
+    if (!request.HasFormContentType)
+        return Results.BadRequest(new { error = "invalid_request" });
 
-    var tokenHandler = new JwtSecurityTokenHandler();
-    var key = Encoding.UTF8.GetBytes(SecretKey);
+    var form = await request.ReadFormAsync();
+    var grantType = form["grant_type"].ToString();
 
-    var claims = new List<Claim>
+    // Ventanilla 1: microservicios (Client Credentials, requisito 3.e)
+    if (grantType == "client_credentials")
     {
-        new(JwtRegisteredClaimNames.Sub, dto.ClientId ?? "anonymous-user"),
-        new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-        new("role", dto.Role ?? "Client")
-    };
+        var clientId = form["client_id"].ToString();
+        var clientSecret = form["client_secret"].ToString();
 
-    var tokenDescriptor = new SecurityTokenDescriptor
+        var client = tokens.FindClient(clientId, clientSecret);
+        if (client is null)
+            return Results.Json(new { error = "invalid_client" }, statusCode: 401);
+
+        Serilog.Log.Information("INICIO: Emitiendo token JWT para el cliente {ClientId}", clientId);
+
+        var secretKey = configuration["Jwt:SecretKey"] ?? "clave_por_defecto_muy_segura_123";
+        var key = Encoding.UTF8.GetBytes(secretKey);
+
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, clientId),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new("role", client.Role ?? "Client")
+        };
+
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(claims),
+            Expires = DateTime.UtcNow.AddHours(2),
+            Issuer = "SeatsReservation.AuthServer",
+            Audience = "SeatsReservation.Microservices",
+            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+        };
+
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var token = tokenHandler.CreateToken(tokenDescriptor);
+        var jwtString = tokenHandler.WriteToken(token);
+
+        Serilog.Log.Information("FIN: Token JWT emitido exitosamente para {ClientId}", clientId);
+
+        return Results.Ok(new
+        {
+            access_token = jwtString,
+            token_type = "Bearer",
+            expires_in = 7200
+        });
+    }
+
+    // Ventanilla 2: personas con usuario local (Password Grant)
+    if (grantType == "password")
     {
-        Subject = new ClaimsIdentity(claims),
-        Expires = DateTime.UtcNow.AddHours(2),
-        Issuer = "SeatsReservation.AuthServer",
-        Audience = "SeatsReservation.Microservices",
-        SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-    };
+        var user = tokens.FindUser(form["username"].ToString(), form["password"].ToString());
+        if (user is null)
+            return Results.BadRequest(new { error = "invalid_grant" });
 
-    var token = tokenHandler.CreateToken(tokenDescriptor);
-    var jwtString = tokenHandler.WriteToken(token);
+        var jwt = tokens.CreateToken(user.UserId, user.Role);
+        return Results.Ok(new { access_token = jwt, token_type = "Bearer", expires_in = TokenService.ExpiresInSeconds });
+    }
 
-    Serilog.Log.Information("FIN: Token JWT emitido exitosamente para {ClientId}", dto.ClientId ?? "anonymous-user");
-
-    return Results.Ok(new
+    // Ventanilla 3: canje directo del id_token del proveedor externo
+    if (grantType == "urn:ietf:params:oauth:grant-type:token-exchange")
     {
-        access_token = jwtString,
-        token_type = "Bearer",
-        expires_in = 7200
-    });
+        var externalSub = await external.ValidateAsync(form["subject_token"].ToString());
+        if (externalSub is null)
+            return Results.BadRequest(new { error = "invalid_grant", error_description = "id_token externo inválido o vencido" });
+
+        var user = tokens.FindUserByExternalSubject(externalSub);
+        if (user is null)
+            return Results.BadRequest(new { error = "invalid_grant", error_description = "usuario externo no registrado en el sistema" });
+
+        var jwt = tokens.CreateToken(user.UserId, user.Role);
+        return Results.Ok(new { access_token = jwt, token_type = "Bearer", expires_in = TokenService.ExpiresInSeconds });
+    }
+
+    // Ventanilla 4: el front canjea el comprobante de retiro (Authorization Code + PKCE)
+    if (grantType == "authorization_code")
+    {
+        var entry = codes.Redeem(form["code"].ToString());
+        if (entry is null)
+            return Results.BadRequest(new { error = "invalid_grant", error_description = "código inválido, vencido o ya usado" });
+
+        if (entry.ClientId != form["client_id"].ToString() || entry.RedirectUri != form["redirect_uri"].ToString())
+            return Results.BadRequest(new { error = "invalid_grant", error_description = "client_id o redirect_uri no coinciden" });
+
+        if (!AuthorizationCodeStore.VerifyPkce(form["code_verifier"].ToString(), entry.CodeChallenge))
+            return Results.BadRequest(new { error = "invalid_grant", error_description = "code_verifier no coincide (PKCE)" });
+
+        var jwt = tokens.CreateToken(entry.UserId, entry.Role);
+        return Results.Ok(new { access_token = jwt, token_type = "Bearer", expires_in = TokenService.ExpiresInSeconds });
+    }
+
+    return Results.BadRequest(new { error = "unsupported_grant_type" });
 })
 .WithName("GetToken")
 .WithSummary("[Paso 2 y 3.e]: Emisión de tokens de autenticación JWT")
 .WithDescription("Genera tokens simétricos HS256 tanto para usuarios finales como para comunicación servicio a servicio (M2M).");
 
-app.MapGet("/", () => "Auth Server running. Use POST /connect/token to get JWT.");
+// [3rd Party IdP - vuelta del proveedor]
+app.MapPost("/external/callback", async (HttpRequest request, ExternalLoginStore externalLogins,
+    ExternalTokenValidator external, TokenService tokens, AuthorizationCodeStore codes) =>
+{
+    if (!request.HasFormContentType)
+        return ErrorPage("Pedido inválido.");
+
+    var form = await request.ReadFormAsync();
+
+    var pending = externalLogins.Take(form["state"].ToString());
+    if (pending is null)
+        return ErrorPage("El inicio de sesión venció o no es válido. Volvé a intentarlo.");
+
+    var externalSub = await external.ValidateAsync(form["id_token"].ToString(), pending.Nonce);
+    if (externalSub is null)
+        return ErrorPage("No se pudo verificar tu identidad con el proveedor externo.");
+
+    var user = tokens.FindUserByExternalSubject(externalSub);
+    if (user is null)
+        return ErrorPage("Tu cuenta del proveedor externo no está registrada en la Boletería.");
+
+    var code = codes.Create(pending.ClientId, pending.RedirectUri, pending.CodeChallenge, user.UserId, user.Role);
+    var callbackUrl = QueryHelpers.AddQueryString(pending.RedirectUri, new Dictionary<string, string?>
+    {
+        ["code"] = code,
+        ["state"] = pending.FrontState
+    });
+    return Results.Redirect(callbackUrl);
+});
+
+app.MapGet("/", () => "Auth Server running on port 5104. Use POST /connect/token to get JWT.");
+
+// Endpoint protegido de prueba
+app.MapGet("/connect/whoami", (ClaimsPrincipal user) =>
+    Results.Ok(user.Claims.Select(c => new { c.Type, c.Value })))
+    .RequireAuthorization();
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapGet("/test/callback", (string? code, string? state) =>
+        Results.Content(
+            $"<h1>Vuelta a la app (prueba)</h1>" +
+            $"<p><b>code:</b> {System.Net.WebUtility.HtmlEncode(code)}</p>" +
+            $"<p><b>state:</b> {System.Net.WebUtility.HtmlEncode(state)}</p>",
+            "text/html"));
+}
 
 app.Run();
 
-/// <summary>
-/// [Dominio Anémico - Requisito 3.e]: DTO de solicitud de token de autenticación.
-/// </summary>
+static IResult ErrorPage(string message) => Results.Content(
+    $"<h1>Boletería · No se pudo ingresar</h1><p>{System.Net.WebUtility.HtmlEncode(message)}</p>",
+    "text/html", statusCode: 400);
+
 public record TokenRequestDto(string? ClientId, string? ClientSecret, string? Role);
