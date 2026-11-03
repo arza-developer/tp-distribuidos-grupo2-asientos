@@ -11,7 +11,9 @@ public enum LoginStatus
     Success,
     InvalidCredentials,
     RoleNotAllowed,
-    InvalidToken
+    InvalidToken,
+    /// <summary>El Auth Server rechazó el código de autorización (inválido, vencido, ya usado o PKCE no coincide).</summary>
+    InvalidCode
 }
 
 /// <param name="Principal">Identidad para la cookie (solo con <see cref="LoginStatus.Success"/>).</param>
@@ -19,7 +21,7 @@ public enum LoginStatus
 public sealed record LoginResult(LoginStatus Status, ClaimsPrincipal? Principal = null, DateTimeOffset? ExpiresUtc = null);
 
 /// <summary>
-/// Login de las páginas: pide el token al Auth Server (password grant), lo VALIDA con los mismos parámetros que la API
+/// Login de las páginas: obtiene el token del Auth Server (password grant o canje de código PKCE), lo VALIDA con los mismos parámetros que la API
 /// (firma, issuer, audience, vigencia), exige el rol <c>Client</c> y un <c>sub</c> Guid, y arma la identidad de la cookie
 /// con solo <c>sub</c>, <c>role</c> y <c>name</c>. El JWT no se conserva.
 /// </summary>
@@ -31,11 +33,34 @@ public sealed class SessionLoginService(
     public const string RequiredRole = "Client";
     private const int MaxNameLength = 100;
 
+    /// <summary>Login por usuario y contraseña (grant <c>password</c>, solo pruebas: TD-9).</summary>
     public async Task<LoginResult> LoginAsync(string username, string password, string correlationId, CancellationToken ct = default)
     {
         var token = await loginClient.LoginAsync(username, password, correlationId, ct);
         if (token is null) return new LoginResult(LoginStatus.InvalidCredentials);
 
+        return await CreateSessionAsync(token, username, ct);
+    }
+
+    /// <summary>
+    /// Login federado: canjea el código de Authorization Code + PKCE (canal trasero con el Auth Server) y abre la sesión
+    /// con las mismas reglas que el login por contraseña. El JWT no trae nombre: la sesión usa el <c>sub</c> como nombre.
+    /// </summary>
+    public async Task<LoginResult> LoginWithCodeAsync(string code, string codeVerifier, string redirectUri, string clientId,
+        string correlationId, CancellationToken ct = default)
+    {
+        var token = await loginClient.ExchangeCodeAsync(code, codeVerifier, redirectUri, clientId, correlationId, ct);
+        if (token is null) return new LoginResult(LoginStatus.InvalidCode);
+
+        return await CreateSessionAsync(token, displayName: null, ct);
+    }
+
+    /// <summary>
+    /// Núcleo común de ambos logins: valida el token con los mismos parámetros que la API (firma, issuer, audience,
+    /// vigencia), exige rol <c>Client</c> y <c>sub</c> Guid, y arma la identidad con solo <c>sub</c>, <c>role</c> y <c>name</c>.
+    /// </summary>
+    private async Task<LoginResult> CreateSessionAsync(string token, string? displayName, CancellationToken ct)
+    {
         var parameters = jwtOptions.Get(JwtBearerDefaults.AuthenticationScheme).TokenValidationParameters;
         var validation = await new JsonWebTokenHandler().ValidateTokenAsync(token, parameters);
         if (!validation.IsValid || validation.SecurityToken is not JsonWebToken jwt)
@@ -49,12 +74,13 @@ public sealed class SessionLoginService(
         var role = validation.ClaimsIdentity.FindFirst("role")?.Value;
         if (role != RequiredRole || !Guid.TryParse(sub, out _))
         {
-            logger.LogInformation("Login rechazado: el token del usuario {Username} no es de un usuario con rol {Role}.",
-                username, RequiredRole);
+            logger.LogInformation("Login rechazado: el token de {Subject} no es de un usuario con rol {Role}.",
+                displayName ?? sub, RequiredRole);
             return new LoginResult(LoginStatus.RoleNotAllowed);
         }
 
-        var name = username.Length > MaxNameLength ? username[..MaxNameLength] : username;
+        var name = displayName ?? sub!;
+        if (name.Length > MaxNameLength) name = name[..MaxNameLength];
         var identity = new ClaimsIdentity(
             [new Claim("sub", sub!), new Claim("role", role), new Claim("name", name)],
             authenticationType: "Cookies", nameType: "name", roleType: "role");

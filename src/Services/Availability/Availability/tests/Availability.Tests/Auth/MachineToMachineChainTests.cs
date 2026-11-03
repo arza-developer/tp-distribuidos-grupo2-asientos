@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Availability.Tests.Auth;
 
 /// <summary>
+/// (TD-11/T8.6: se conserva un solo caso de la cadena; el resto de las reglas M2M las cubren AccessTokenProviderTests y BookingAuthHandlerTests.)
 /// Cadena real de DI: <c>IBookingClient</c> → <c>BookingAuthHandler</c> → <c>AccessTokenProvider</c> → Auth Server (falso)
 /// y luego Booking (falso) con el Bearer. Equivale a lo que ocurre en producción, sin red.
 /// </summary>
@@ -82,117 +83,5 @@ public class MachineToMachineChainTests
         Assert.Equal("Bearer", bookingRequest.Headers.Authorization!.Scheme);
         Assert.Equal("m2m-1", bookingRequest.Headers.Authorization.Parameter);
         Assert.Equal("corr-chain", Assert.Single(bookingRequest.Headers.GetValues("X-Correlation-ID")));
-    }
-
-    [Fact]
-    public async Task ManyBookingCalls_ReuseTheSameCachedToken()
-    {
-        var auth = AuthServerIssuing(n => $"m2m-{n}");
-        var booking = BookingAnswering((_, _) => Json(HttpStatusCode.OK, RetainedBody));
-        await using var provider = Build(auth, booking);
-
-        for (var i = 0; i < 5; i++)
-        {
-            using var scope = provider.CreateScope(); // una "request" distinta cada vez
-            await scope.ServiceProvider.GetRequiredService<IBookingClient>().GetStatusAsync(Guid.NewGuid());
-        }
-
-        Assert.Single(auth.Calls); // el cache del token sobrevive entre requests (proveedor singleton)
-        Assert.All(booking.Calls, c => Assert.Equal("m2m-1", c.Request.Headers.Authorization!.Parameter));
-        Assert.Equal(5, booking.Calls.Count);
-    }
-
-    [Fact]
-    public async Task Booking401_RenewsTheToken_AndTheCallSucceedsOnRetry()
-    {
-        var auth = AuthServerIssuing(n => $"m2m-{n}");
-        var booking = BookingAnswering((_, call) =>
-            call == 1 ? Json(HttpStatusCode.Unauthorized, "{}") : Json(HttpStatusCode.OK, RetainedBody));
-        await using var provider = Build(auth, booking);
-        using var scope = provider.CreateScope();
-
-        var info = await scope.ServiceProvider.GetRequiredService<IBookingClient>().GetStatusAsync(Guid.NewGuid());
-
-        Assert.Equal(ReservationStatus.Retained, info!.Status);
-        Assert.Equal(2, auth.Calls.Count);
-        Assert.Equal("m2m-1", booking.Calls[0].Request.Headers.Authorization!.Parameter);
-        Assert.Equal("m2m-2", booking.Calls[1].Request.Headers.Authorization!.Parameter);
-    }
-
-    [Fact]
-    public async Task Booking401Persistently_EndsAsBookingUnavailable()
-    {
-        var auth = AuthServerIssuing(n => $"m2m-{n}");
-        var booking = BookingAnswering((_, _) => Json(HttpStatusCode.Unauthorized, "{}"));
-        await using var provider = Build(auth, booking);
-        using var scope = provider.CreateScope();
-
-        await Assert.ThrowsAsync<BookingUnavailableException>(
-            () => scope.ServiceProvider.GetRequiredService<IBookingClient>().GetStatusAsync(Guid.NewGuid()));
-
-        Assert.Equal(2, booking.Calls.Count); // un intento + un único reintento
-    }
-
-    [Fact]
-    public async Task AuthServerDown_MeansBookingIsNeverCalled_AndTheResultIsBookingUnavailable()
-    {
-        var auth = new AccessTokenProviderTests.StubHandler((_, _) => throw new HttpRequestException("connection refused"));
-        var booking = BookingAnswering((_, _) => Json(HttpStatusCode.OK, RetainedBody));
-        await using var provider = Build(auth, booking);
-        using var scope = provider.CreateScope();
-
-        await Assert.ThrowsAsync<BookingUnavailableException>(
-            () => scope.ServiceProvider.GetRequiredService<IBookingClient>().GetStatusAsync(Guid.NewGuid()));
-
-        Assert.Empty(booking.Calls);
-    }
-
-    [Fact]
-    public async Task WrongClientSecret_AuthServerRejects_AndBookingIsNeverCalled()
-    {
-        var auth = new AccessTokenProviderTests.StubHandler((_, _) =>
-            Task.FromResult(Json(HttpStatusCode.Unauthorized, """{"error":"invalid_client"}""")));
-        var booking = BookingAnswering((_, _) => Json(HttpStatusCode.OK, RetainedBody));
-        await using var provider = Build(auth, booking, secret: "equivocado");
-        using var scope = provider.CreateScope();
-
-        await Assert.ThrowsAsync<BookingUnavailableException>(
-            () => scope.ServiceProvider.GetRequiredService<IBookingClient>().GetStatusAsync(Guid.NewGuid()));
-
-        Assert.Contains("client_secret=equivocado", Assert.Single(auth.Calls).Body);
-        Assert.Empty(booking.Calls);
-    }
-
-    [Fact]
-    public async Task MissingClientSecret_FailsFastWithoutTouchingTheNetwork()
-    {
-        var auth = AuthServerIssuing(n => $"m2m-{n}");
-        var booking = BookingAnswering((_, _) => Json(HttpStatusCode.OK, RetainedBody));
-        await using var provider = Build(auth, booking, secret: null);
-        using var scope = provider.CreateScope();
-
-        await Assert.ThrowsAsync<BookingUnavailableException>(
-            () => scope.ServiceProvider.GetRequiredService<IBookingClient>().GetStatusAsync(Guid.NewGuid()));
-
-        Assert.Empty(auth.Calls);
-        Assert.Empty(booking.Calls);
-    }
-
-    [Fact]
-    public async Task TokenExpiry_TriggersARenewalOnTheNextCall()
-    {
-        var clock = new FakeTimeProvider();
-        var auth = AuthServerIssuing(n => $"m2m-{n}");
-        var booking = BookingAnswering((_, _) => Json(HttpStatusCode.OK, RetainedBody));
-        await using var provider = Build(auth, booking, clock: clock);
-
-        using (var scope = provider.CreateScope())
-            await scope.ServiceProvider.GetRequiredService<IBookingClient>().GetStatusAsync(Guid.NewGuid());
-        clock.Advance(TimeSpan.FromHours(1)); // vence (3600 s − 60 s de margen)
-        using (var scope = provider.CreateScope())
-            await scope.ServiceProvider.GetRequiredService<IBookingClient>().GetStatusAsync(Guid.NewGuid());
-
-        Assert.Equal(2, auth.Calls.Count);
-        Assert.Equal("m2m-2", booking.Calls[1].Request.Headers.Authorization!.Parameter);
     }
 }

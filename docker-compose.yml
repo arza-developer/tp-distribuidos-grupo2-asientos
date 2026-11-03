@@ -57,6 +57,10 @@ services:
       AuthServer__BaseUrl: "http://auth-server:5104"
       AuthServer__ClientSecret: "availability-secret-dev"
       Booking__BaseUrl: "http://booking-api:5102"
+      # [Login federado, Authorization Code + PKCE]: el navegador va al Auth Server por su URL PÚBLICA (host), mientras que
+      # el canje del código usa la interna (BaseUrl). La vuelta debe coincidir con las RedirectUris del cliente "frontend".
+      AuthServer__PublicUrl: "http://localhost:5104"
+      AuthServer__FrontendRedirectUri: "http://localhost:5101/Account/Callback"
       # [Broker]: Booking consume el topic de Azure Service Bus del docente. El secreto NO se versiona:
       # definir SERVICEBUS_CONNECTION_STRING en el entorno o en un .env local. Vacío => POST /api/reservations responde 503.
       ServiceBus__ConnectionString: "${SERVICEBUS_CONNECTION_STRING}"
@@ -66,6 +70,7 @@ services:
     depends_on:
       - auth-server
       - booking-api
+      - external-idp # el Auth Server federa el login con el IdP externo (Fase 8)
     # [Decisión]: 2.0 CPUs para garantizar paralelismo real en el ThreadPool bajo concurrencia
     cpus: 2.0
     mem_limit: 512m

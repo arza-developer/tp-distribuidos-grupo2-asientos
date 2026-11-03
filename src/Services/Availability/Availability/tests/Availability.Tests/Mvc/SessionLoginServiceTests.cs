@@ -24,6 +24,10 @@ public class SessionLoginServiceTests
 
         public Task<string?> LoginAsync(string username, string password, string correlationId, CancellationToken ct = default) =>
             Throw is not null ? throw Throw : Task.FromResult(token);
+
+        public Task<string?> ExchangeCodeAsync(string code, string codeVerifier, string redirectUri, string clientId,
+            string correlationId, CancellationToken ct = default) =>
+            Throw is not null ? throw Throw : Task.FromResult(token);
     }
 
     private static IOptionsMonitor<JwtBearerOptions> RealJwtOptions()
@@ -126,5 +130,65 @@ public class SessionLoginServiceTests
         var service = Create(token: null, throws: new AuthServerUnavailableException("caído"));
 
         await Assert.ThrowsAsync<AuthServerUnavailableException>(() => service.LoginAsync("u", "x", "c"));
+    }
+
+    // ---------- Login federado: canje del código (Fase 8) ----------
+
+    [Fact]
+    public async Task Code_ValidClientToken_Succeeds_WithTheSubjectAsName()
+    {
+        var result = await Create(TestJwt.ForClient()).LoginWithCodeAsync("cod", "ver", "http://x/cb", "frontend", "c");
+
+        Assert.Equal(LoginStatus.Success, result.Status);
+        var claims = result.Principal!.Claims.ToDictionary(c => c.Type, c => c.Value);
+        Assert.Equal(["name", "role", "sub"], claims.Keys.Order().ToArray());
+        Assert.Equal(TestJwt.ClientUserId.ToString(), claims["sub"]);
+        Assert.Equal(TestJwt.ClientUserId.ToString(), claims["name"]); // el JWT no trae nombre de usuario
+        Assert.True(result.Principal.IsInRole("Client"));
+    }
+
+    [Fact]
+    public async Task Code_RejectedByTheAuthServer_IsInvalidCode()
+    {
+        var result = await Create(token: null).LoginWithCodeAsync("usado", "ver", "http://x/cb", "frontend", "c");
+
+        Assert.Equal(LoginStatus.InvalidCode, result.Status);
+        Assert.Null(result.Principal);
+    }
+
+    [Fact]
+    public async Task Code_ServiceRole_IsNotAllowed()
+    {
+        var result = await Create(TestJwt.ForService()).LoginWithCodeAsync("cod", "ver", "http://x/cb", "frontend", "c");
+
+        Assert.Equal(LoginStatus.RoleNotAllowed, result.Status);
+        Assert.Null(result.Principal);
+    }
+
+    [Fact]
+    public async Task Code_ForgedOrExpiredToken_IsInvalid()
+    {
+        var forged = TestJwt.Create(TestJwt.ClientUserId.ToString(), "Client", key: "otra-clave-distinta-de-al-menos-32-bytes!!");
+        var expired = TestJwt.Create(TestJwt.ClientUserId.ToString(), "Client",
+            notBefore: DateTime.UtcNow.AddHours(-3), expires: DateTime.UtcNow.AddHours(-2));
+
+        foreach (var token in new[] { forged, expired })
+            Assert.Equal(LoginStatus.InvalidToken, (await Create(token).LoginWithCodeAsync("c", "v", "http://x/cb", "frontend", "c")).Status);
+    }
+
+    [Fact]
+    public async Task Code_NonGuidSubject_IsNotAllowed()
+    {
+        var result = await Create(TestJwt.Create("availability", "Client")).LoginWithCodeAsync("c", "v", "http://x/cb", "frontend", "c");
+
+        Assert.Equal(LoginStatus.RoleNotAllowed, result.Status);
+    }
+
+    [Fact]
+    public async Task Code_AuthServerFailure_Propagates()
+    {
+        var service = Create(token: null, throws: new AuthServerUnavailableException("caído"));
+
+        await Assert.ThrowsAsync<AuthServerUnavailableException>(() => service.LoginWithCodeAsync("c", "v", "http://x/cb", "frontend", "c"));
     }
 }

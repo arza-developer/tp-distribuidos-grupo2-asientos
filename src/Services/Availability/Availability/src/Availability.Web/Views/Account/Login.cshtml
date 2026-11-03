@@ -21,3 +21,10 @@
 
     <button type="submit" class="btn">Ingresar</button>
 </form>
+
+<hr />
+<p class="muted">O ingresá con tu cuenta del proveedor de identidad externo.</p>
+<form asp-controller="Account" asp-action="LoginExternal" method="post">
+    <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+    <button type="submit" class="btn">Ingresar con proveedor externo</button>
+</form>

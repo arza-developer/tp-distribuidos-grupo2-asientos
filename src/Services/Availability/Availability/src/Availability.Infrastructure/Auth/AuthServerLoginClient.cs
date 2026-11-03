@@ -8,9 +8,9 @@ using Microsoft.Extensions.Logging;
 namespace Availability.Infrastructure.Auth;
 
 /// <summary>
-/// <c>POST /connect/token</c> (form-urlencoded) con <c>grant_type=password</c>. Credenciales incorrectas
-/// (400 <c>invalid_grant</c> o 401) → <c>null</c>; cualquier otro fallo → <see cref="AuthServerUnavailableException"/>.
-/// La contraseña nunca se escribe en los logs.
+/// <c>POST /connect/token</c> (form-urlencoded) con <c>grant_type=password</c> o <c>authorization_code</c>. Credenciales o
+/// código rechazados (400 <c>invalid_grant</c> o 401) → <c>null</c>; cualquier otro fallo → <see cref="AuthServerUnavailableException"/>.
+/// Ni la contraseña ni el código ni el verifier se escriben en los logs.
 /// </summary>
 public sealed class AuthServerLoginClient(IHttpClientFactory httpClientFactory, ILogger<AuthServerLoginClient> logger)
     : IAuthServerLoginClient
@@ -19,19 +19,37 @@ public sealed class AuthServerLoginClient(IHttpClientFactory httpClientFactory, 
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<string?> LoginAsync(string username, string password, string correlationId, CancellationToken ct = default)
+    public Task<string?> LoginAsync(string username, string password, string correlationId, CancellationToken ct = default) =>
+        PostTokenAsync(new Dictionary<string, string>
+            {
+                ["grant_type"] = "password",
+                ["username"] = username,
+                ["password"] = password
+            },
+            () => logger.LogInformation("Login rechazado por el Auth Server para el usuario {Username}.", username),
+            ct);
+
+    public Task<string?> ExchangeCodeAsync(string code, string codeVerifier, string redirectUri, string clientId,
+        string correlationId, CancellationToken ct = default) =>
+        PostTokenAsync(new Dictionary<string, string>
+            {
+                ["grant_type"] = "authorization_code",
+                ["code"] = code,
+                ["code_verifier"] = codeVerifier,
+                ["client_id"] = clientId,
+                ["redirect_uri"] = redirectUri
+            },
+            () => logger.LogInformation("El Auth Server rechazó el código de autorización (inválido, vencido o ya usado)."),
+            ct);
+
+    private async Task<string?> PostTokenAsync(Dictionary<string, string> form, Action logRejected, CancellationToken ct)
     {
         try
         {
             var http = httpClientFactory.CreateClient(AuthServerOptions.HttpClientName);
             using var request = new HttpRequestMessage(HttpMethod.Post, "connect/token")
             {
-                Content = new FormUrlEncodedContent(new Dictionary<string, string>
-                {
-                    ["grant_type"] = "password",
-                    ["username"] = username,
-                    ["password"] = password
-                })
+                Content = new FormUrlEncodedContent(form)
             };
             //request.Headers.Add("X-Correlation-ID", correlationId);
 
@@ -39,7 +57,7 @@ public sealed class AuthServerLoginClient(IHttpClientFactory httpClientFactory, 
 
             if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized)
             {
-                logger.LogInformation("Login rechazado por el Auth Server para el usuario {Username}.", username);
+                logRejected();
                 return null;
             }
 

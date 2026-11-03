@@ -76,7 +76,7 @@ public class AccessTokenProviderTests
         Assert.Equal(HttpMethod.Post, request.Method);
         Assert.Equal("http://auth.test/connect/token", request.RequestUri!.ToString());
         Assert.Equal("application/x-www-form-urlencoded", request.Content!.Headers.ContentType!.MediaType);
-        Assert.Equal("grant_type=client_credentials&client_id=availability-api&client_secret=availability-secret-dev", body);
+        Assert.Equal("grant_type=client_credentials&client_id=availability&client_secret=availability-secret-dev", body);
         Assert.Equal("corr-9", Assert.Single(request.Headers.GetValues("X-Correlation-ID")));
     }
 
@@ -87,7 +87,7 @@ public class AccessTokenProviderTests
 
         await provider.GetTokenAsync("c");
 
-        Assert.Equal("grant_type=client_credentials&client_id=availability-api&client_secret=se%26cre%3Dto+%2B1",
+        Assert.Equal("grant_type=client_credentials&client_id=availability&client_secret=se%26cre%3Dto+%2B1",
             handler.Calls.Single().Body);
     }
 

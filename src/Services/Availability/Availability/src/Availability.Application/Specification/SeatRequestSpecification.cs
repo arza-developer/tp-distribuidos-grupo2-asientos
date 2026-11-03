@@ -14,6 +14,10 @@ public static class SeatRequestSpecification
     public static readonly ReservationStatus[] ActiveStatuses =
         [ReservationStatus.Pending, ReservationStatus.Retained, ReservationStatus.Confirmed];
 
+    /// <summary>Las solicitudes de ese usuario (el UserId del token): insumo de «mis reservas».</summary>
+    public static Expression<Func<SeatRequest, bool>> ByUser(Guid userId) =>
+        r => r.UserId == userId;
+
     /// <summary>La solicitud con esa referencia externa (<c>ReservationId</c>, nunca el Id interno).</summary>
     public static Expression<Func<SeatRequest, bool>> ByReservationId(Guid reservationId) =>
         r => r.ReservationId == reservationId;

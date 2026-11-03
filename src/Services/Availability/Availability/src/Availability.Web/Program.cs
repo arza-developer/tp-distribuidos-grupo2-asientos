@@ -38,6 +38,7 @@ builder.Services.AddAuthProblemDetails();
 // Cookie para las páginas y esquema por defecto elegido por ruta (/api → Bearer, resto → Cookie): ver CookieAuthenticationExtensions.
 builder.Services.AddCookieAuthentication();
 builder.Services.AddScoped<SessionLoginService>();
+builder.Services.AddSingleton<ExternalLoginFlow>(); // login federado: cookie de flujo (state + PKCE) y URL de authorize
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
