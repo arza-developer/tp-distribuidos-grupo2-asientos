@@ -3,4 +3,8 @@
 **/.idea
 **/bin
 **/obj
+# SQLite locales de desarrollo: no deben entrar a la imagen
+**/*.db
+**/*.db-shm
+**/*.db-wal
 

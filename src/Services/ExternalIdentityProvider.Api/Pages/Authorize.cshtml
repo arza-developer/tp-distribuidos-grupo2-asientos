@@ -1,0 +1,118 @@
+﻿@page "/authorize"
+@model AuthorizeModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <title>Proveedor Externo · Iniciar sesión</title>
+    <style>
+            body {
+                font-family: sans-serif;
+                background: #f1f3f4;
+                margin: 0;
+            }
+
+            .card {
+                max-width: 380px;
+                margin: 60px auto;
+                background: #fff;
+                border: 1px solid #dadce0;
+                border-radius: 8px;
+                padding: 32px 36px;
+            }
+
+            .brand {
+                font-weight: bold;
+                color: #1a73e8;
+            }
+
+            h1 {
+                font-size: 22px;
+                font-weight: normal;
+                margin: 12px 0 4px;
+            }
+
+            .sub {
+                color: #5f6368;
+                margin: 0 0 20px;
+            }
+
+            label, input, button {
+                display: block;
+                width: 100%;
+                box-sizing: border-box;
+            }
+
+            input {
+                margin: 4px 0 14px;
+                padding: 10px;
+                border: 1px solid #dadce0;
+                border-radius: 4px;
+            }
+
+            button {
+                padding: 10px;
+                background: #1a73e8;
+                color: #fff;
+                border: 0;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+
+            .error {
+                color: #d93025;
+            }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="brand">Proveedor Externo</div>
+
+        @if (Model.InvalidRequest is not null)
+        {
+            <h1>No se puede continuar</h1>
+            <p class="error">@Model.InvalidRequest</p>
+        }
+        else if (Model.IdToken is not null)
+        {
+            @* [form_post]: el navegador envía solo este formulario a la aplicación, con el id_token *@
+            <p>Volviendo a la aplicación…</p>
+            <form id="vuelta" method="post" action="@Model.RedirectUri" asp-antiforgery="false">
+                <input type="hidden" name="id_token" value="@Model.IdToken" />
+                <input type="hidden" name="state" value="@Model.State" />
+                <noscript><button type="submit">Continuar</button></noscript>
+            </form>
+            <script>document.getElementById('vuelta').submit();</script>
+        }
+        else
+        {
+            <h1>Iniciar sesión</h1>
+            <p class="sub">para continuar a la Boletería</p>
+
+            if (Model.LoginError is not null)
+            {
+                <p class="error">@Model.LoginError</p>
+            }
+
+            <form method="post">
+                <input type="hidden" name="response_type" value="@Model.ResponseType" />
+                <input type="hidden" name="client_id" value="@Model.ClientId" />
+                <input type="hidden" name="redirect_uri" value="@Model.RedirectUri" />
+                <input type="hidden" name="state" value="@Model.State" />
+                <input type="hidden" name="nonce" value="@Model.Nonce" />
+
+                <label for="Email">Email</label>
+                <input id="Email" name="Email" value="@Model.Email" autocomplete="username" />
+
+                <label for="Password">Contraseña</label>
+                <input id="Password" name="Password" type="password" autocomplete="current-password" />
+
+                <button type="submit">Siguiente</button>
+            </form>
+        }
+    </div>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <!--
+      Librería compartida de autenticación (AddJwtAuthentication, constantes Issuer/Audience): vive en
+      src/Common/SeatsReservation.Auth, que llega con la rama feature/06-auth-server-m2m (o con develop ya actualizado).
+    -->
+    <SharedAuthProject>..\..\..\..\..\Common\SeatsReservation.Auth\SeatsReservation.Auth.csproj</SharedAuthProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Availability.Application\Availability.Application.csproj" />
+    <ProjectReference Include="..\Availability.Infrastructure\Availability.Infrastructure.csproj" />
+    <ProjectReference Include="$(SharedAuthProject)" Condition="Exists('$(SharedAuthProject)')" />
+  </ItemGroup>
+
+  <!-- Sin la librería, el error de compilación sería críptico (namespace SeatsReservation.Auth inexistente): se avisa antes. -->
+  <Target Name="RequireSharedAuthProject" BeforeTargets="CoreCompile" Condition="!Exists('$(SharedAuthProject)')">
+    <Error Text="Falta src/Common/SeatsReservation.Auth (librería compartida de la rama feature/06-auth-server-m2m): mergear primero esa rama o actualizar develop." />
+  </Target>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="wwwroot\js\" />
+    <Folder Include="wwwroot\lib\" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>b1650665-3672-4680-bd17-81a2e9100d24</UserSecretsId>
+  </PropertyGroup>
+
+</Project>

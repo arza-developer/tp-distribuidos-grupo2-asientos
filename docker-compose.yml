@@ -39,18 +39,33 @@ services:
     mem_limit: 256m
 
   # 3. Fachada Pública de Catálogo y Reservas (Clean Architecture - Requisito 3.a)
-  availability-api:
+  availability:
     build:
       context: .
       args:
-        SERVICE_NAME: Availability.Api
-    container_name: seats-availability-api
+        SERVICE_NAME: Availability.Web
+        # Estructura propia (Clean Architecture): el proyecto no vive en src/Services/<SERVICE_NAME>
+        SERVICE_PATH: src/Services/Availability/Availability/src/Availability.Web
+    container_name: seats-availability
     ports:
       - "5101:5101"
     environment:
       <<: *jwt-env
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_HTTP_PORTS: "5101"
+      # [Req. 3.e]: token M2M para consultar a Booking (credenciales de desarrollo, igual que en el AuthServer)
+      AuthServer__BaseUrl: "http://auth-server:5104"
+      AuthServer__ClientSecret: "availability-secret-dev"
+      Booking__BaseUrl: "http://booking-api:5102"
+      # [Broker]: Booking consume el topic de Azure Service Bus del docente. El secreto NO se versiona:
+      # definir SERVICEBUS_CONNECTION_STRING en el entorno o en un .env local. Vacío => POST /api/reservations responde 503.
+      ServiceBus__ConnectionString: "${SERVICEBUS_CONNECTION_STRING}"
+      ConnectionStrings__Availability: "Data Source=/data/availability.db"
+    volumes:
+      - availability-data:/data
+    depends_on:
+      - auth-server
+      - booking-api
     # [Decisión]: 2.0 CPUs para garantizar paralelismo real en el ThreadPool bajo concurrencia
     cpus: 2.0
     mem_limit: 512m
@@ -68,6 +83,8 @@ services:
       <<: *jwt-env
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_HTTP_PORTS: "5102"
+      # [Broker]: Booking consume el topic de Azure Service Bus (secreto en .env local, no versionado)
+      ServiceBus__ConnectionString: "${SERVICEBUS_CONNECTION_STRING}"
     # [Decisión]: 2.0 CPUs para simular condiciones de carrera en acceso concurrente a asientos
     cpus: 2.0
     mem_limit: 512m
@@ -116,3 +133,7 @@ services:
       ASPNETCORE_HTTP_PORTS: "5105"
     cpus: 0.5
     mem_limit: 256m
+
+# Persistencia SQLite de Availability (sobrevive a recrear el contenedor)
+volumes:
+  availability-data:

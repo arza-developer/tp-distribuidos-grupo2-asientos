@@ -6,11 +6,19 @@
   </Folder>
   <Folder Name="/src/Services/">
     <Project Path="src/Services/AuthServer.Api/AuthServer.Api.csproj" />
-    <Project Path="src/Services/Availability.Api/Availability.Api.csproj" />
     <Project Path="src/Services/Booking.Api/Booking.Api.csproj" />
     <Project Path="src/Services/ExternalIdentityProvider.Api/ExternalIdentityProvider.Api.csproj" />
     <Project Path="src/Services/Notifications.Worker/Notifications.Worker.csproj" />
     <Project Path="src/Services/Payment.Grpc/Payment.Grpc.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/Availability/">
+    <Project Path="src/Services/Availability/Availability/src/Availability.Domain/Availability.Domain.csproj" />
+    <Project Path="src/Services/Availability/Availability/src/Availability.Application/Availability.Application.csproj" />
+    <Project Path="src/Services/Availability/Availability/src/Availability.Infrastructure/Availability.Infrastructure.csproj" />
+    <Project Path="src/Services/Availability/Availability/src/Availability.Web/Availability.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="src/Services/Availability/Availability/tests/Availability.Tests/Availability.Tests.csproj" />
   </Folder>
   <Project Path="Booking.Tests/Booking.Tests.csproj" Id="43ff5b80-881f-4bd2-a573-a0b27a431828" />
 </Solution>
