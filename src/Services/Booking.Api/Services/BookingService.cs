@@ -2,16 +2,20 @@
 using Booking.Api.Models;
 using Booking.Api.Models.Enums;
 using Booking.Api.Repositories;
+using Booking.Api.Clients;
+using Booking.Api.Exceptions;
 
 namespace Booking.Api.Services
 {
     public class BookingService: IBookingService
     {
         private readonly IBookingRepository _repository;
+        private readonly IPaymentClient _paymentClient;
 
-        public BookingService(IBookingRepository repository)
+        public BookingService(IBookingRepository repository, IPaymentClient paymentClient)
         {
             _repository = repository;
+            _paymentClient = paymentClient;
         }
 
         // Intentar retener una reserva
@@ -175,6 +179,52 @@ namespace Booking.Api.Services
         public Task<int> ExpireOverdueReservationsAsync(CancellationToken cancellationToken  = default)
         {
             return _repository.ExpireOverdueReservationsAsync(DateTime.UtcNow, cancellationToken);
+        }
+
+        public async Task<Reservation> ProcessBookingAsync(ReserveSeatRequest request, decimal amount, CancellationToken cancellationToken = default)
+        {
+            //Validamos el importe antes de procesar la reserva
+            if (amount <= 0)
+            {
+                throw new ArgumentException("El importe debe ser mayor a cero.", nameof(amount));
+            }
+
+            // Intentar retener la reserva
+            var reservation = await TryRetainReservationAsync(request, cancellationToken);
+            
+            // Si la reserva ya tiene resultado final, devolvemos la reserva sin volver a cobrar 
+            if (reservation.Status != ReservationStatus.Retained)
+            {
+                return reservation;
+            }
+            
+            //No iniciamos un cobro si la reserva ya vencio
+            if (reservation.ExpiresAtUtc == null || reservation.ExpiresAtUtc <= DateTime.UtcNow)
+            {
+                throw new InvalidOperationException("La reserva ya venció.");
+            }
+
+            //Solicitamos el pago mediante el cliente gRPC, es un llamada sincronica, booking service espera la respuesta de payment service para continuar
+            var paymentResult = await _paymentClient.ProcessPaymentAsync(reservation.Id, reservation.UserId, amount, reservation.RequestId.ToString(), cancellationToken);
+
+            //Interpretamos el resultado del pago y actualizamos la reserva en consecuencia
+            switch (paymentResult.Outcome)
+            {
+                case PaymentOutcome.Confirmed:
+                    //Intentamos confirmar la reserva
+                    return await ConfirmReservationAsync(reservation.Id, cancellationToken);
+                
+                case PaymentOutcome.Failed:
+                    //Intentamos rechazar la reserva por pago fallido
+                    return await RejectReservationAsync(reservation.Id, ReservationRejectionReason.PaymentFailed, cancellationToken);
+                
+                case PaymentOutcome.Unavailable:
+                    //No sabemos si el cobro llego a procesarse, conservamos Retained para permitir recuperación
+                    throw new PaymentUnavailableException("No se pudo determinar el resultado del pago.");
+
+                default:
+                    throw new InvalidOperationException($"Resultado de pago desconocido: {paymentResult.Outcome}");
+            }
         }
     }
 }

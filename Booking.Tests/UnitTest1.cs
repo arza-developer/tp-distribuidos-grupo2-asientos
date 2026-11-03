@@ -1,4 +1,4 @@
-
+       
 using Booking.Api.Data;
 using Booking.Api.DTOs;
 using Booking.Api.Models.Enums;
@@ -6,11 +6,60 @@ using Booking.Api.Repositories;
 using Booking.Api.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Booking.Api.Exceptions;
+using Booking.Api.Clients;
 
 namespace Booking.Tests;
 
 public class BookingServiceTests
 {
+    private sealed class FakePaymentClient : IPaymentClient
+    {
+        // Podemos configurar qué resultado devolverá Payment.
+        public PaymentOutcome Outcome { get; set; } =
+            PaymentOutcome.Confirmed;
+
+        public int Calls { get; private set; }
+
+        public Guid LastReservationId { get; private set; }
+
+        public string? LastCorrelationId { get; private set; }
+
+        public decimal LastAmount { get; private set; }
+
+        public Task<PaymentResult> ProcessPaymentAsync(
+            Guid reservationId,
+            string userId,
+            decimal amount,
+            string correlationId,
+            CancellationToken ct = default)
+        {
+            Calls++;
+            LastReservationId = reservationId;
+            LastCorrelationId = correlationId;
+            LastAmount = amount;
+
+            return Task.FromResult(new PaymentResult(
+                Outcome,
+                Outcome == PaymentOutcome.Confirmed
+                    ? "test-transaction"
+                    : null,
+                Outcome == PaymentOutcome.Failed
+                    ? "Pago rechazado"
+                    : string.Empty));
+        }
+    }
+
+    // Método auxiliar para construir BookingService en los tests.
+    private static BookingService CreateService(
+        IBookingRepository repository,
+        FakePaymentClient? paymentClient = null)
+    {
+        return new BookingService(
+            repository,
+            paymentClient ?? new FakePaymentClient());
+    }
+
     [Fact]
     public async Task FreeSeat_ShouldCreateRetainedReservation()
     {
@@ -31,7 +80,7 @@ public class BookingServiceTests
 
         // Creamos las dependencias del servicio.
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         // Preparamos una solicitud de reserva.
         var request = new ReserveSeatRequest
@@ -67,7 +116,7 @@ public class BookingServiceTests
         await context.Database.MigrateAsync();
 
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         var eventId = Guid.NewGuid();
 
@@ -121,7 +170,7 @@ public class BookingServiceTests
         await context.Database.MigrateAsync();
 
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         var request = new ReserveSeatRequest
         {
@@ -196,7 +245,7 @@ public class BookingServiceTests
                 await using var context = new BookingDbContext(options);
 
                 var repository = new BookingRepository(context);
-                var service = new BookingService(repository);
+                var service = CreateService(repository);
 
                 return await service.TryRetainReservationAsync(request);
             }).ToArray();
@@ -259,7 +308,7 @@ public class BookingServiceTests
         await context.Database.MigrateAsync();
 
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         // Creamos una solicitud de reserva.
         var request = new ReserveSeatRequest
@@ -308,7 +357,7 @@ public class BookingServiceTests
         await context.Database.MigrateAsync();
 
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         var request = new ReserveSeatRequest
         {
@@ -367,7 +416,7 @@ public class BookingServiceTests
         await context.Database.MigrateAsync();
 
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         var request = new ReserveSeatRequest
         {
@@ -414,7 +463,7 @@ public class BookingServiceTests
         await context.Database.MigrateAsync();
 
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         var request = new ReserveSeatRequest
         {
@@ -472,7 +521,7 @@ public class BookingServiceTests
         await context.Database.MigrateAsync();
 
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         var request = new ReserveSeatRequest
         {
@@ -527,7 +576,7 @@ public class BookingServiceTests
         await context.Database.MigrateAsync();
 
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         var request = new ReserveSeatRequest
         {
@@ -592,7 +641,7 @@ public class BookingServiceTests
             {
                 await setupContext.Database.MigrateAsync();
 
-                var service = new BookingService(
+                var service = CreateService(
                     new BookingRepository(setupContext));
 
                 var retained = await service.TryRetainReservationAsync(
@@ -623,7 +672,7 @@ public class BookingServiceTests
                 await start.Task;
 
                 await using var context = new BookingDbContext(options);
-                var service = new BookingService(
+                var service = CreateService(
                     new BookingRepository(context));
 
                 return await service.ConfirmReservationAsync(reservationId);
@@ -634,7 +683,7 @@ public class BookingServiceTests
                 await start.Task;
 
                 await using var context = new BookingDbContext(options);
-                var service = new BookingService(
+                var service = CreateService(
                     new BookingRepository(context));
 
                 // El nuevo método vence todas las reservas fuera de plazo.
@@ -693,7 +742,7 @@ public class BookingServiceTests
         await context.Database.MigrateAsync();
 
         var repository = new BookingRepository(context);
-        var service = new BookingService(repository);
+        var service = CreateService(repository);
 
         var request = new ReserveSeatRequest
         {
@@ -717,5 +766,168 @@ public class BookingServiceTests
             .SingleAsync(r => r.Id == retained.Id);
 
         Assert.Equal(ReservationStatus.Retained, saved.Status);
+    }
+
+    [Theory]
+    [InlineData(PaymentOutcome.Confirmed, ReservationStatus.Confirmed)]
+    [InlineData(PaymentOutcome.Failed, ReservationStatus.Rejected)]
+    public async Task ProcessBooking_ShouldApplyPaymentOutcome(
+        PaymentOutcome outcome,
+        ReservationStatus expectedStatus)
+    {
+        await using var connection =
+            new SqliteConnection("Data Source=:memory:");
+
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<BookingDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var context = new BookingDbContext(options);
+        await context.Database.MigrateAsync();
+
+        var paymentClient = new FakePaymentClient
+        {
+            Outcome = outcome
+        };
+
+        var service = CreateService(
+            new BookingRepository(context),
+            paymentClient);
+
+        var request = new ReserveSeatRequest
+        {
+            RequestId = Guid.NewGuid(),
+            EventId = Guid.NewGuid(),
+            SeatNumber = "A12",
+            UserId = "user-1"
+        };
+
+        decimal amount = 15000m;
+
+        // Ejecutamos el flujo completo.
+        var result = await service.ProcessBookingAsync(
+            request, amount);
+
+        Assert.Equal(expectedStatus, result.Status);
+
+        // Payment debe haber sido invocado una sola vez.
+        Assert.Equal(1, paymentClient.Calls);
+
+        // Comprobamos los parámetros enviados a Payment.
+        Assert.Equal(result.Id, paymentClient.LastReservationId);
+        Assert.Equal(
+            request.RequestId.ToString(),
+            paymentClient.LastCorrelationId);
+        Assert.Equal(amount, paymentClient.LastAmount);
+
+        // Verificamos que el estado quedó persistido.
+        var saved = await context.Reservations
+            .AsNoTracking()
+            .SingleAsync(r => r.Id == result.Id);
+
+        Assert.Equal(expectedStatus, saved.Status);
+
+        if (outcome == PaymentOutcome.Failed)
+        {
+            Assert.Equal(
+                ReservationRejectionReason.PaymentFailed,
+                saved.RejectionReason);
+        }
+    }
+
+    [Fact]
+    public async Task ProcessBooking_DuplicateConfirmedRequest_ShouldNotChargeTwice()
+    {
+        await using var connection =
+            new SqliteConnection("Data Source=:memory:");
+
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<BookingDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var context = new BookingDbContext(options);
+        await context.Database.MigrateAsync();
+
+        var paymentClient = new FakePaymentClient();
+
+        var service = CreateService(
+            new BookingRepository(context),
+            paymentClient);
+
+        var request = new ReserveSeatRequest
+        {
+            RequestId = Guid.NewGuid(),
+            EventId = Guid.NewGuid(),
+            SeatNumber = "A12",
+            UserId = "user-1"
+        };
+
+        // Primera entrega del mensaje.
+        var first = await service.ProcessBookingAsync(
+            request, 15000m);
+
+        // Azure Service Bus vuelve a entregar el mismo mensaje.
+        var second = await service.ProcessBookingAsync(
+            request, 15000m);
+
+        Assert.Equal(ReservationStatus.Confirmed, first.Status);
+        Assert.Equal(ReservationStatus.Confirmed, second.Status);
+
+        Assert.Equal(first.Id, second.Id);
+
+        // No debería solicitarse un segundo cobro.
+        Assert.Equal(1, paymentClient.Calls);
+
+        Assert.Equal(1, await context.Reservations.CountAsync());
+    }
+
+    [Fact]
+    public async Task ProcessBooking_PaymentUnavailable_ShouldKeepRetained()
+    {
+        await using var connection =
+            new SqliteConnection("Data Source=:memory:");
+
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<BookingDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var context = new BookingDbContext(options);
+        await context.Database.MigrateAsync();
+
+        var paymentClient = new FakePaymentClient
+        {
+            Outcome = PaymentOutcome.Unavailable
+        };
+
+        var service = CreateService(
+            new BookingRepository(context),
+            paymentClient);
+
+        var request = new ReserveSeatRequest
+        {
+            RequestId = Guid.NewGuid(),
+            EventId = Guid.NewGuid(),
+            SeatNumber = "A12",
+            UserId = "user-1"
+        };
+
+        await Assert.ThrowsAsync<PaymentUnavailableException>(
+            () => service.ProcessBookingAsync(request, 15000m));
+
+        // Aunque Payment no respondió, la reserva debe existir.
+        var saved = await context.Reservations
+            .AsNoTracking()
+            .SingleAsync(r => r.RequestId == request.RequestId);
+
+        Assert.Equal(ReservationStatus.Retained, saved.Status);
+        Assert.Null(saved.RejectionReason);
+
+        Assert.Equal(1, paymentClient.Calls);
     }
 }
