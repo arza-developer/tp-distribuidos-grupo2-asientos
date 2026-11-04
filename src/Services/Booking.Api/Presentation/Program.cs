@@ -3,14 +3,15 @@ using Booking.Api.DataAccess.ExternalServices;
 using Microsoft.Extensions.Http.Resilience;
 using Polly;
 using SeatsReservation.Contracts.Grpc;
+using SeatsReservation.Auth;
 using Booking.Api.DataAccess.Data;
 using Booking.Api.DataAccess.Repositories;
 using Booking.Api.Business.Services;
 using Microsoft.EntityFrameworkCore;
 using Azure.Messaging.ServiceBus;
 using SeatsReservation.Observability;
-//
 using Booking.Api.Presentation.Workers;
+using Microsoft.AspNetCore.Identity;
 
 // c00cf9dbfeab24962b7a046df7dd528eaca589bd:src/Services/Booking.Api/Presentation/Program.cs
 var builder = WebApplication.CreateBuilder(args);
@@ -42,6 +43,7 @@ builder.Services
 
 builder.Services.AddScoped<IPaymentClient, PaymentClient>();
 
+builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services
     .AddOptions<AuthenticationClientConfiguration>()
     .Bind(builder.Configuration.GetSection(AuthenticationClientConfiguration.SectionName))
@@ -61,8 +63,7 @@ builder.Services
 builder.Services.AddHttpClient("AuthServer");
 builder.Services.AddSingleton<IAuthenticationClient, AuthenticationClient>();
 
-builder.Services.AddDbContext<BookingDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("BookingDataBase")));
+builder.Services.AddDbContext<BookingDbContext>(options => options.UseSqlite(builder.Configuration.GetConnectionString("BookingDataBase")));
 builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 builder.Services.AddSingleton(_ => new ServiceBusClient(builder.Configuration["ServiceBus:ConnectionString"]));
 builder.Services.AddHostedService<BookingQueueConsumer>();
@@ -81,6 +82,12 @@ var app = builder.Build();
 // 3. Registrar el Middleware de Correlación al comienzo absoluto del pipeline HTTP
 app.UseSeatsObservability();
 
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<BookingDbContext>();
+    await dbContext.Database.MigrateAsync();
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -89,7 +96,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();
