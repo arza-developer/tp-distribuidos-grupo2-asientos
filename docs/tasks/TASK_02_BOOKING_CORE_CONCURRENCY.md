@@ -18,7 +18,7 @@ Implementar el modelo relacional de reservas y garantizar la exclusión mutua pa
 ## 4. Tareas Concretas
 1. Configurar Entity Framework Core con SQLite (`booking.db`).
 2. Implementar índice único compuesto: `UNIQUE(EventId, SeatNumber, StatusActive)`.
-3. Crear servicio de aplicación que intente registrar la reserva: si colisiona por concurrencia, cambia a `Rechazada (Motivo: asiento ocupado)`.
+3. Crear servicio de aplicación que registre la reserva; si colisiona por concurrencia, cambia a `Rechazada (Motivo: asiento ocupado)`.
 
 ## 5. Criterios de Aceptación (DoD)
 - [ ] Ante 10 solicitudes concurrentes sobre el mismo asiento, solo 1 queda `Retenida` y 9 son `Rechazadas`.

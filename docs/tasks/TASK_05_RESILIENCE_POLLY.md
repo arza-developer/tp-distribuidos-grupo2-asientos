@@ -1,4 +1,4 @@
-# �� Especificación Técnica: Tarea 05
+# 📋 Especificación Técnica: Tarea 05
 **Rama Git:** `feature/05-resilience-polly`  
 **Módulo:** `src/Services/Booking.Api/`  
 **Puerto:** N/A (Cliente gRPC saliente)  

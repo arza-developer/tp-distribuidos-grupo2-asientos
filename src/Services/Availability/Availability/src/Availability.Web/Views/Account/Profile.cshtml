@@ -1,0 +1,10 @@
+@{
+    ViewData["Title"] = "Mi sesión";
+}
+
+<h1>Mi sesión</h1>
+<table>
+    <tr><th>Usuario</th><td>@User.Identity?.Name</td></tr>
+    <tr><th>Rol</th><td>@(User.FindFirst("role")?.Value)</td></tr>
+    <tr><th>Identificador</th><td>@(User.FindFirst("sub")?.Value)</td></tr>
+</table>

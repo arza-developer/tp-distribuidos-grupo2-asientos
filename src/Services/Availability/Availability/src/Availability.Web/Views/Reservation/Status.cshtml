@@ -1,0 +1,23 @@
+@model ReservationStatusViewModel
+@{
+    ViewData["Title"] = "Estado de la reserva";
+}
+
+<h1>Estado de la reserva</h1>
+
+<table>
+    <tr><th>Estado</th><td><span class="badge @Model.BadgeClass">@Model.StatusLabel</span></td></tr>
+    <tr><th>Detalle</th><td>@Model.Result.Message</td></tr>
+    <tr><th>Asiento</th><td>@Model.Result.SeatNumber</td></tr>
+    @if (Model.ExpiresText is { } expires)
+    {
+        <tr><th>Vence</th><td>@expires</td></tr>
+    }
+    <tr><th>Reserva</th><td><code>@Model.Result.ReservationId</code></td></tr>
+</table>
+
+<p>
+    <a class="btn small" href="/Reservation/Status/@Model.Result.ReservationId">Actualizar</a>
+    <a href="/">Volver al catálogo</a>
+</p>
+<p class="muted">El resultado lo decide Booking y puede tardar unos segundos: actualizá la página para verlo.</p>

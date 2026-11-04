@@ -2,6 +2,7 @@
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using SeatsReservation.Contracts.Events;
+using Serilog.Context;
 
 namespace Notifications.Worker;
 
@@ -51,7 +52,6 @@ public class Worker : BackgroundService
         {
             await processor.StartProcessingAsync(stoppingToken);
 
-            // Mantiene el servicio activo mientras escucha mensajes.
             await Task.Delay(Timeout.Infinite, stoppingToken);
         }
         catch (OperationCanceledException)
@@ -88,8 +88,6 @@ public class Worker : BackgroundService
                     "Mensaje inválido recibido. MessageId: {MessageId}",
                     messageId);
 
-                // Evita que un mensaje inválido vuelva a entregarse
-                // indefinidamente. En producción podría enviarse a DLQ.
                 await args.DeadLetterMessageAsync(
                     args.Message,
                     "InvalidReservationEvent",
@@ -103,28 +101,24 @@ public class Worker : BackgroundService
                     ? reservation.CorrelationId
                     : args.Message.CorrelationId ?? "No disponible";
 
-            using var scope = _logger.BeginScope(
-                new Dictionary<string, object>
-                {
-                    ["CorrelationId"] = correlationId,
-                    ["ReservationId"] = reservation.ReservationId,
-                    ["UserId"] = reservation.UserId
-                });
+            using (LogContext.PushProperty("CorrelationId", correlationId))
+            using (LogContext.PushProperty("ReservationId", reservation.ReservationId))
+            using (LogContext.PushProperty("UserId", reservation.UserId))
+            {
+                _logger.LogInformation(
+                    "[NOTIFICACIÓN] Reserva {ReservationId} confirmada para el usuario {UserId}. Asiento: {SeatNumber}. Transacción: {TransactionId}. CorrelationId: {CorrelationId}",
+                    reservation.ReservationId,
+                    reservation.UserId,
+                    reservation.SeatNumber,
+                    reservation.TransactionId,
+                    correlationId);
 
-            _logger.LogInformation(
-                "[NOTIFICACIÓN] Reserva {ReservationId} confirmada para el usuario {UserId}. Asiento: {SeatNumber}. Transacción: {TransactionId}. CorrelationId: {CorrelationId}",
-                reservation.ReservationId,
-                reservation.UserId,
-                reservation.SeatNumber,
-                reservation.TransactionId,
-                correlationId);
-
-            // Simulación de envío de email/push.
-            _logger.LogInformation(
-                "[NOTIFICACIÓN SIMULADA] Email/push enviado al usuario {UserId} por la reserva {ReservationId}. CorrelationId: {CorrelationId}",
-                reservation.UserId,
-                reservation.ReservationId,
-                correlationId);
+                _logger.LogInformation(
+                    "[NOTIFICACIÓN SIMULADA] Email/push enviado al usuario {UserId} por la reserva {ReservationId}. CorrelationId: {CorrelationId}",
+                    reservation.UserId,
+                    reservation.ReservationId,
+                    correlationId);
+            }
 
             await args.CompleteMessageAsync(args.Message);
         }
@@ -147,8 +141,6 @@ public class Worker : BackgroundService
                 "Error al procesar el mensaje {MessageId}. Se intentará nuevamente si corresponde.",
                 messageId);
 
-            // No completamos el mensaje en caso de error:
-            // Service Bus podrá volver a entregarlo según su política.
             throw;
         }
     }

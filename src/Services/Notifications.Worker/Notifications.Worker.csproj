@@ -11,9 +11,13 @@
     <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.21.0" />
     <PackageReference Include="Azure.Storage.Queues" Version="12.28.1" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="10.0.1" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\Common\SeatsReservation.Contracts\SeatsReservation.Contracts.csproj" />
+	<ProjectReference Include="..\..\..\SeatsReservation.Observability\SeatsReservation.Observability.csproj" />
   </ItemGroup>
 </Project>

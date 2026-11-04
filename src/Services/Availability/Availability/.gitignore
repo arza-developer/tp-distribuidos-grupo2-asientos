@@ -1,0 +1,4 @@
+# SQLite (EF Core) – archivos de base de datos locales
+*.db
+*.db-shm
+*.db-wal

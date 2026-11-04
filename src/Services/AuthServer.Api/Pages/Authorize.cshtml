@@ -1,0 +1,65 @@
+﻿@page "/connect/authorize"
+@model AuthorizeModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <title>Boletería · Ingresar</title>
+    <style>
+            body { font-family: sans-serif; max-width: 360px; margin: 60px auto; padding: 0 16px; }
+            label, input, button { display: block; width: 100%; box-sizing: border-box; }
+            input { margin: 4px 0 12px; padding: 8px; }
+            button { padding: 10px; cursor: pointer; }
+            .error { color: #b00020; }
+    </style>
+</head>
+<body>
+    <h1>Boletería · Ingresar</h1>
+
+    @if (Model.InvalidRequest is not null)
+    {
+        <p class="error">Pedido inválido: @Model.InvalidRequest</p>
+    }
+    else
+    {
+        if (Model.LoginError is not null)
+        {
+            <p class="error">@Model.LoginError</p>
+        }
+
+        <form method="post">
+            @* Los parámetros del front viajan ocultos para no perderlos al mandar el formulario *@
+            <input type="hidden" name="response_type" value="@Model.ResponseType" />
+            <input type="hidden" name="client_id" value="@Model.ClientId" />
+            <input type="hidden" name="redirect_uri" value="@Model.RedirectUri" />
+            <input type="hidden" name="code_challenge" value="@Model.CodeChallenge" />
+            <input type="hidden" name="code_challenge_method" value="@Model.CodeChallengeMethod" />
+            <input type="hidden" name="state" value="@Model.State" />
+
+            <label for="Username">Usuario</label>
+            <input id="Username" name="Username" value="@Model.Username" autocomplete="username" />
+
+            <label for="Password">Contraseña</label>
+            <input id="Password" name="Password" type="password" autocomplete="current-password" />
+
+            <button type="submit">Ingresar</button>
+        </form>
+
+        <p style="text-align: center; color: #666;">o</p>
+
+        @* [3rd Party IdP]: como "Continue with Google". asp-page-handler="External" llama a OnPostExternal *@
+        <form method="post" asp-page-handler="External">
+            <input type="hidden" name="response_type" value="@Model.ResponseType" />
+            <input type="hidden" name="client_id" value="@Model.ClientId" />
+            <input type="hidden" name="redirect_uri" value="@Model.RedirectUri" />
+            <input type="hidden" name="code_challenge" value="@Model.CodeChallenge" />
+            <input type="hidden" name="code_challenge_method" value="@Model.CodeChallengeMethod" />
+            <input type="hidden" name="state" value="@Model.State" />
+            <button type="submit">Ingresar con Proveedor Externo</button>
+        </form>
+    }
+</body>
+</html>

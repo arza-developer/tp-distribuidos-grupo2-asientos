@@ -1,0 +1,9 @@
+@model ProblemViewModel
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+<h1>@Model.Title</h1>
+<div class="msg error" role="alert">@Model.Message</div>
+<p class="muted">Código de seguimiento: <code>@Model.CorrelationId</code></p>
+<p><a href="/">Volver al catálogo</a></p>

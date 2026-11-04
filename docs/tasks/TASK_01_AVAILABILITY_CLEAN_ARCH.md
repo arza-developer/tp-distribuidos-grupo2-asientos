@@ -1,6 +1,6 @@
 # 📋 Especificación Técnica: Tarea 01
 **Rama Git:** `feature/01-availability-clean-arch`  
-**Módulo:** `src/Services/Availability.Api/`  
+**Módulo:** `src/Services/Availability/Availability/`
 **Puerto:** `HTTP 5101`  
 
 ## 1. Alcance y Responsabilidad
@@ -17,8 +17,8 @@ Implementar la fachada pública de catálogo y recepción de reservas bajo arqui
 - `GET /api/reservations/{id}`: Proxy de consulta de estado hacia Booking.
 
 ## 4. Tareas Concretas
-1. Reestructurar el proyecto en capas internas: `Domain`, `UseCases`, `Adapters` e `Infrastructure`.
-2. Crear la entidad anémica `Seat` y el caso de uso `RequestReservationUseCase`.
+1. Reestructurar el proyecto en capas: `Domain`, `Application`, `Infrastructure` y `Web`, utilizando CQRS.
+2. Crear la entidad anémica `Seat` y `Reservation` con Querys y Commands que permitan las funcionalidades requeridas.
 3. Inyectar `IMessagePublisher` en el caso de uso para desacoplar el broker.
 4. Registrar log con formato `[{CorrelationId}] INICIO: ...` (Requisito 3.f).
 
@@ -28,4 +28,4 @@ Implementar la fachada pública de catálogo y recepción de reservas bajo arqui
 
 ## 6. Defensa Oral
 - **¿Por qué las entidades son anémicas?**  
-  *Respuesta:* Requisito explícito 3.a.ii; la orquestación reside en los Interactors y las entidades solo contienen estado.
+  *Respuesta:* Requisito explícito 3.a.ii; la orquestación reside en los Handlers y las entidades solo contienen estado.
