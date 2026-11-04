@@ -45,10 +45,10 @@ public class BookingsController : ControllerBase
         //Traducimos los estados internos de la reserva a un formato legible para la API
         var status = reservation.Status switch
         {
-            ReservationStatus.Retained => "Retained",
-            ReservationStatus.Confirmed => "Confirmed",
-            ReservationStatus.Rejected => "Rejected",
-            ReservationStatus.Expired => "Expired",
+            ReservationStatus.Retained => "Retenida",
+            ReservationStatus.Confirmed => "Confirmada",
+            ReservationStatus.Rejected => "Rechazada",
+            ReservationStatus.Expired => "Vendida",
             _ => "Desconocida"
         };
         
