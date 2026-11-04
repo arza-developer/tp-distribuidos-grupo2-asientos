@@ -1,23 +1,166 @@
+
+using System.Text.Json;
+using Azure.Messaging.ServiceBus;
+using SeatsReservation.Contracts.Events;
+
 namespace Notifications.Worker;
 
 public class Worker : BackgroundService
 {
     private readonly ILogger<Worker> _logger;
+    private readonly ServiceBusClient _serviceBusClient;
+    private readonly ServiceBusWorkerOptions _options;
 
-    public Worker(ILogger<Worker> logger)
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
+    public Worker(
+        ILogger<Worker> logger,
+        ServiceBusClient serviceBusClient,
+        ServiceBusWorkerOptions options)
     {
         _logger = logger;
+        _serviceBusClient = serviceBusClient;
+        _options = options;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task ExecuteAsync(
+        CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        _logger.LogInformation(
+            "Notifications Worker iniciado. Topic: {TopicName}. Suscripción: {SubscriptionName}",
+            _options.TopicName,
+            _options.SubscriptionName);
+
+        await using ServiceBusProcessor processor =
+            _serviceBusClient.CreateProcessor(
+                _options.TopicName,
+                _options.SubscriptionName,
+                new ServiceBusProcessorOptions
+                {
+                    AutoCompleteMessages = false,
+                    MaxConcurrentCalls = 1
+                });
+
+        processor.ProcessMessageAsync += ProcessMessageAsync;
+        processor.ProcessErrorAsync += ProcessErrorAsync;
+
+        try
         {
-            if (_logger.IsEnabled(LogLevel.Information))
-            {
-                _logger.LogInformation("Worker running at: {time}", DateTimeOffset.Now);
-            }
-            await Task.Delay(1000, stoppingToken);
+            await processor.StartProcessingAsync(stoppingToken);
+
+            // Mantiene el servicio activo mientras escucha mensajes.
+            await Task.Delay(Timeout.Infinite, stoppingToken);
         }
+        catch (OperationCanceledException)
+            when (stoppingToken.IsCancellationRequested)
+        {
+            // Cierre normal del servicio.
+        }
+        finally
+        {
+            await processor.StopProcessingAsync(CancellationToken.None);
+        }
+
+        _logger.LogInformation("Notifications Worker detenido.");
+    }
+
+    private async Task ProcessMessageAsync(
+        ProcessMessageEventArgs args)
+    {
+        string messageId = args.Message.MessageId;
+
+        try
+        {
+            ReservationConfirmedEvent? reservation =
+                JsonSerializer.Deserialize<ReservationConfirmedEvent>(
+                    args.Message.Body.ToString(),
+                    JsonOptions);
+
+            if (reservation is null ||
+                reservation.ReservationId == Guid.Empty ||
+                reservation.UserId == Guid.Empty ||
+                string.IsNullOrWhiteSpace(reservation.SeatNumber))
+            {
+                _logger.LogWarning(
+                    "Mensaje inválido recibido. MessageId: {MessageId}",
+                    messageId);
+
+                // Evita que un mensaje inválido vuelva a entregarse
+                // indefinidamente. En producción podría enviarse a DLQ.
+                await args.DeadLetterMessageAsync(
+                    args.Message,
+                    "InvalidReservationEvent",
+                    "El mensaje no contiene los datos requeridos.");
+
+                return;
+            }
+
+            string correlationId =
+                !string.IsNullOrWhiteSpace(reservation.CorrelationId)
+                    ? reservation.CorrelationId
+                    : args.Message.CorrelationId ?? "No disponible";
+
+            using var scope = _logger.BeginScope(
+                new Dictionary<string, object>
+                {
+                    ["CorrelationId"] = correlationId,
+                    ["ReservationId"] = reservation.ReservationId,
+                    ["UserId"] = reservation.UserId
+                });
+
+            _logger.LogInformation(
+                "[NOTIFICACIÓN] Reserva {ReservationId} confirmada para el usuario {UserId}. Asiento: {SeatNumber}. Transacción: {TransactionId}. CorrelationId: {CorrelationId}",
+                reservation.ReservationId,
+                reservation.UserId,
+                reservation.SeatNumber,
+                reservation.TransactionId,
+                correlationId);
+
+            // Simulación de envío de email/push.
+            _logger.LogInformation(
+                "[NOTIFICACIÓN SIMULADA] Email/push enviado al usuario {UserId} por la reserva {ReservationId}. CorrelationId: {CorrelationId}",
+                reservation.UserId,
+                reservation.ReservationId,
+                correlationId);
+
+            await args.CompleteMessageAsync(args.Message);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(
+                ex,
+                "No se pudo deserializar el mensaje {MessageId}",
+                messageId);
+
+            await args.DeadLetterMessageAsync(
+                args.Message,
+                "InvalidJson",
+                "El cuerpo del mensaje no contiene JSON válido.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Error al procesar el mensaje {MessageId}. Se intentará nuevamente si corresponde.",
+                messageId);
+
+            // No completamos el mensaje en caso de error:
+            // Service Bus podrá volver a entregarlo según su política.
+            throw;
+        }
+    }
+
+    private Task ProcessErrorAsync(ProcessErrorEventArgs args)
+    {
+        _logger.LogError(
+            args.Exception,
+            "Error de Azure Service Bus. Entidad: {EntityPath}. Origen: {ErrorSource}",
+            args.EntityPath,
+            args.ErrorSource);
+
+        return Task.CompletedTask;
     }
 }
