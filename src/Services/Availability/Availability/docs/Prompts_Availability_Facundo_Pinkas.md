@@ -376,3 +376,13 @@ Ejecutar tareas pendientes y sumar una nueva tarea de limpieza para eliminar tes
 ```
 Agreguar anchor que permita al usuario autenticado ir a status desde Home cuando existe reservation para seat donde corresponda usuario id
 ```
+
+### P74
+```
+commit 82eb9285ea13ba92af41b021ec82311d6535a868 reintrodujo codigo muerto y afecto coherencia en repositorio. Se realizo merge a develop que afecta integridad de repo. Posibles abordajes
+```
+
+### P75
+```
+Corrección hacia adelante (Recommended) / Compartida + ajuste mínimo (Recommended)
+```

@@ -3,10 +3,7 @@ using AuthServer.Api.Options;
 using AuthServer.Api.Services;
 using Microsoft.AspNetCore.WebUtilities;
 using SeatsReservation.Auth;
-using System.Text;
-using Microsoft.IdentityModel.Tokens;
 using Serilog;
-using System.IdentityModel.Tokens.Jwt;
 using SeatsReservation.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -44,7 +41,7 @@ app.UseAuthorization();
 app.MapRazorPages();
 
 // Endpoint de emisión de tokens OAuth2 unificado
-app.MapPost("/connect/token", async (HttpRequest request, TokenService tokens, ExternalTokenValidator external, AuthorizationCodeStore codes, IConfiguration configuration) =>
+app.MapPost("/connect/token", async (HttpRequest request, TokenService tokens, ExternalTokenValidator external, AuthorizationCodeStore codes) =>
 {
     if (!request.HasFormContentType)
         return Results.BadRequest(new { error = "invalid_request" });
@@ -64,37 +61,13 @@ app.MapPost("/connect/token", async (HttpRequest request, TokenService tokens, E
 
         Serilog.Log.Information("INICIO: Emitiendo token JWT para el cliente {ClientId}", clientId);
 
-        var secretKey = configuration["Jwt:SecretKey"] ?? "clave_por_defecto_muy_segura_123";
-        var key = Encoding.UTF8.GetBytes(secretKey);
-
-        var claims = new List<Claim>
-        {
-            new(JwtRegisteredClaimNames.Sub, clientId),
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new("role", client.Role ?? "Client")
-        };
-
-        var tokenDescriptor = new SecurityTokenDescriptor
-        {
-            Subject = new ClaimsIdentity(claims),
-            Expires = DateTime.UtcNow.AddHours(2),
-            Issuer = "SeatsReservation.AuthServer",
-            Audience = "SeatsReservation.Microservices",
-            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-        };
-
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var token = tokenHandler.CreateToken(tokenDescriptor);
-        var jwtString = tokenHandler.WriteToken(token);
+        // Un único emisor de tokens (TokenService): misma clave Jwt:Key que validan todos los servicios, mismo issuer/audience y vida.
+        // (Una firma distinta aquí dejaría sin validar los tokens M2M: ningún servicio los aceptaría.)
+        var jwt = tokens.CreateToken(client.ClientId, client.Role);
 
         Serilog.Log.Information("FIN: Token JWT emitido exitosamente para {ClientId}", clientId);
 
-        return Results.Ok(new
-        {
-            access_token = jwtString,
-            token_type = "Bearer",
-            expires_in = 7200
-        });
+        return Results.Ok(new { access_token = jwt, token_type = "Bearer", expires_in = TokenService.ExpiresInSeconds });
     }
 
     // Ventanilla 2: personas con usuario local (Password Grant)
