@@ -44,7 +44,7 @@ services:
       context: .
       args:
         SERVICE_NAME: Availability.Web
-        # Estructura propia (Clean Architecture): el proyecto no vive en src/Services/<SERVICE_NAME>
+        # Estructura propia (Clean Architecture): ruta exacta al csproj de la capa Web
         SERVICE_PATH: src/Services/Availability/Availability/src/Availability.Web
     container_name: seats-availability
     ports:

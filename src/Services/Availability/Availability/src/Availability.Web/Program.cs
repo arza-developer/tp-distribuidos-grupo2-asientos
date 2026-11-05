@@ -11,6 +11,7 @@ using Availability.Web.Services;
 using Microsoft.OpenApi.Models;
 using Serilog;
 using SeatsReservation.Auth; // librería compartida src/Common/SeatsReservation.Auth (rama feature/06-auth-server-m2m)
+using SeatsReservation.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,6 +29,7 @@ builder.Host.UseSerilog(preserveStaticLogger: true, configureLogger: (context, s
 builder.Services.AddApplication();
 builder.Services.Configure<ReservationSyncOptions>(builder.Configuration.GetSection(ReservationSyncOptions.SectionName));
 builder.Services.AddInfrastructure();
+builder.Services.AddSeatsObservability();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICorrelationIdAccessor, HttpCorrelationIdAccessor>();
 builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
@@ -60,9 +62,8 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 var app = builder.Build();
-
-// El id de correlación va primero: así también lo llevan los logs del manejador de excepciones.
-app.UseMiddleware<CorrelationIdMiddleware>();
+// Correlación (req. 3.f) de la librería compartida: va primero, así también la llevan los logs del manejador de excepciones.
+app.UseSeatsObservability();
 app.UseExceptionHandler();
 app.UseStaticFiles(); // wwwroot (css del layout)
 

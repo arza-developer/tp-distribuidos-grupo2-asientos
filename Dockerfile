@@ -2,11 +2,12 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /app
 
-# Copiar archivos de proyectos para restaurar dependencias
+# Copiar archivos de proyectos para restaurar dependencias (capa cacheable)
 COPY SeatsReservation.slnx ./
+COPY SeatsReservation.Observability/*.csproj ./SeatsReservation.Observability/
 COPY src/Common/SeatsReservation.Contracts/*.csproj ./src/Common/SeatsReservation.Contracts/
 COPY src/Common/SeatsReservation.Auth/*.csproj ./src/Common/SeatsReservation.Auth/
-# Availability (solución Clean Architecture): el restore por ruta necesita los 4 csproj referenciados en cadena
+# Availability (solución Clean Architecture): el restore por ruta necesita los csproj referenciados en cadena
 COPY src/Services/Availability/Availability/src/Availability.Domain/*.csproj ./src/Services/Availability/Availability/src/Availability.Domain/
 COPY src/Services/Availability/Availability/src/Availability.Application/*.csproj ./src/Services/Availability/Availability/src/Availability.Application/
 COPY src/Services/Availability/Availability/src/Availability.Infrastructure/*.csproj ./src/Services/Availability/Availability/src/Availability.Infrastructure/
@@ -38,9 +39,9 @@ WORKDIR /app
 # Copiar los binarios compilados desde la etapa build
 COPY --from=build /out .
 
-# Definir dinámicamente la DLL a ejecutar según el servicio
+# Definir dinámicamente la DLL a ejecutar según el servicio. Los ARG no existen en runtime: se pasa a ENV.
+# El puerto lo define cada servicio con ASPNETCORE_HTTP_PORTS en el compose (no se fija ASPNETCORE_URLS acá: tendría precedencia).
 ARG SERVICE_NAME
 ENV APP_DLL=${SERVICE_NAME}.dll
 
 ENTRYPOINT ["sh", "-c", "exec dotnet $APP_DLL"]
-
