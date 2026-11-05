@@ -1,4 +1,4 @@
-namespace Payment.Grpc.Services;
+namespace Payment.Grpc.Domain;
 
 public class PaymentTransaction
 {

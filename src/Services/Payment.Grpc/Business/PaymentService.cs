@@ -1,8 +1,11 @@
 using Grpc.Core;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
-using Payment.Grpc.Services;
+using Payment.Grpc.DataAccess;
+using Payment.Grpc.Domain; 
 using SeatsReservation.Contracts.Grpc;
+
+namespace Payment.Grpc.Business;
 
 [Authorize]
 public class PaymentService : PaymentApi.PaymentApiBase
