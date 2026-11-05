@@ -60,7 +60,10 @@ public sealed class SyncReservationStatusCommandHandler(
             ? await ReconcileUnknownToBookingAsync(local, ct)
             : await ReconcileKnownToBookingAsync(local, info.Status, info.ExpiresAtUtc, ct);
 
-        return new ReservationStatusResult(reservationId, status, message, local.SeatNumber, expiresAtUtc);
+        // El motivo lo decide Booking: solo se informa cuando la reserva está rechazada y Booking lo envió.
+        var rejectionReason = status == ReservationStatus.Rejected ? info?.RejectionReason : null;
+
+        return new ReservationStatusResult(reservationId, local.SeatNumber, status, expiresAtUtc, message, rejectionReason);
     }
 
     private async Task<(ReservationStatus, string, DateTime?)> ReconcileUnknownToBookingAsync(

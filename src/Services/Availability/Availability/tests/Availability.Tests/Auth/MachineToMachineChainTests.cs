@@ -63,7 +63,7 @@ public class MachineToMachineChainTests
         return new AccessTokenProviderTests.StubHandler((request, _) => Task.FromResult(respond(request, ++n)));
     }
 
-    private const string RetainedBody = """{"seatNumber":"A-1","status":"Retenida"}""";
+    private const string RetainedBody = """{"seatNumber":"A-1","status":"Retained"}""";
 
     [Fact]
     public async Task BookingCall_CarriesTheM2MBearerTokenObtainedFromTheAuthServer()

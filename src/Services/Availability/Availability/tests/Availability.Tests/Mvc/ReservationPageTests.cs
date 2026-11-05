@@ -274,7 +274,7 @@ public class ReservationPageTests : IClassFixture<AvailabilityApiFactory>
 
         Assert.Equal(HttpStatusCode.OK, page.StatusCode);
         Assert.Contains("Pendiente de procesamiento", html);
-        Assert.Contains("La reserva aún no fue procesada por Booking", html);
+        Assert.Contains("Su reserva aún no fue procesada", html);
         Assert.Contains(seat, html);
         Assert.Contains(id.ToString(), html);
         Assert.Contains("Actualizar", html);
@@ -292,7 +292,7 @@ public class ReservationPageTests : IClassFixture<AvailabilityApiFactory>
         var html = await (await client.GetAsync($"/Reservation/Status/{id}")).ReadHtmlAsync();
 
         Assert.Contains("Retenida", html);
-        Assert.Contains("Reserva retenida, pendiente de pago", html);
+        Assert.Contains("Se ha generado su reserva, esta pendiente de confirmación de pago", html);
         Assert.Contains("02/11/2026 15:30:45 UTC", html);
         Assert.Contains("badge warn", html);
     }
@@ -340,6 +340,18 @@ public class ReservationPageTests : IClassFixture<AvailabilityApiFactory>
         Assert.Matches($"<td>{seat}</td>\\s*<td>[^<]*</td>\\s*<td>\\s*<span class=\"badge ok\">", catalog);
         Assert.Equal(HttpStatusCode.Redirect, again.StatusCode);
         Assert.StartsWith("/Reservation/Status/", again.RedirectLocation()!);
+    }
+
+    [Fact]
+    public async Task Status_Rejected_ShowsTheRejectionReasonReportedByBooking()
+    {
+        var (client, seat, id) = await ReservedAsync();
+        _factory.Booking.Result = new BookingStatusInfo(ReservationStatus.Rejected, null, seat, "SeatOccupied");
+
+        var html = await (await client.GetAsync($"/Reservation/Status/{id}")).ReadHtmlAsync();
+
+        Assert.Contains("Motivo", html);
+        Assert.Contains("SeatOccupied", html);
     }
 
     [Fact]

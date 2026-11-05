@@ -386,3 +386,13 @@ commit 82eb9285ea13ba92af41b021ec82311d6535a868 reintrodujo codigo muerto y afec
 ```
 Corrección hacia adelante (Recommended) / Compartida + ajuste mínimo (Recommended)
 ```
+
+### P76
+```
+Al querer consultar estado de una reserva (ReservationController, Status), la req llega a booking pero no se recibe res en Availability gerando siempre exception. Explorar estado actual de availability y booking buscando posibles inconsistencias en dto, conflicto de autenticacion client credential o con observability middleware
+```
+
+### P77
+```
+Aditivo: message + rejectionReason (Recommended) / dotnet run / Visual Studio / implementar puntos T10.1, T10.2 y T10.3
+```
