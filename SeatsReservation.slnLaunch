@@ -1,0 +1,27 @@
+[
+  {
+    "Name": "all projects",
+    "Projects": [
+      {
+        "Path": "src\\Services\\AuthServer.Api\\AuthServer.Api.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "src\\Services\\ExternalIdentityProvider.Api\\ExternalIdentityProvider.Api.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "src\\Services\\Availability\\Availability\\src\\Availability.Web\\Availability.Web.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "src\\Services\\Payment.Grpc\\Payment.Grpc.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "src\\Services\\Booking.Api\\Booking.Api.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]
