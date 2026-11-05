@@ -1,8 +1,9 @@
 using Grpc.Core;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration; // <-- 1. Agregar este using
 using Payment.Grpc.DataAccess;
-using Payment.Grpc.Domain; 
+using Payment.Grpc.Domain;
 using SeatsReservation.Contracts.Grpc;
 
 namespace Payment.Grpc.Business;
@@ -12,11 +13,13 @@ public class PaymentService : PaymentApi.PaymentApiBase
 {
     private readonly PaymentDbContext _dbContext;
     private readonly ILogger<PaymentService> _logger;
+    private readonly IConfiguration _configuration; // <-- 2. Declarar la variable
 
-    public PaymentService(PaymentDbContext dbContext, ILogger<PaymentService> logger)
+    public PaymentService(PaymentDbContext dbContext, ILogger<PaymentService> logger, IConfiguration configuration)
     {
         _dbContext = dbContext;
         _logger = logger;
+        _configuration = configuration; // <-- 3. Inyectarla en el constructor
     }
 
     public override async Task<PaymentResponse> ProcessPayment(PaymentRequest request, ServerCallContext context)
@@ -43,8 +46,9 @@ public class PaymentService : PaymentApi.PaymentApiBase
             };
         }
 
-        // 2. Procesamiento normal del pago (o simulación)
-        bool success = true;
+        // 2. Leer el switch de simulación de fallo (Pruebas de caos / Circuit Breaker)
+        bool simulateFailure = _configuration.GetValue<bool>("PaymentSettings:SimulateFailure");
+        bool success = !simulateFailure; // Si está en true, forzamos el fallo
 
         // 3. Guardar en SQLite
         var transaction = new PaymentTransaction
@@ -62,7 +66,7 @@ public class PaymentService : PaymentApi.PaymentApiBase
         {
             IsSuccess = success,
             TransactionId = transaction.Id.ToString(),
-            RejectionReason = success ? string.Empty : "El pago falló."
+            RejectionReason = success ? string.Empty : "Fallo simulado por configuración (Chaos Testing)."
         };
     }
 }
