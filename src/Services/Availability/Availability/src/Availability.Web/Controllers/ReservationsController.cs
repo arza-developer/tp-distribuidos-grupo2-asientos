@@ -58,6 +58,7 @@ public class ReservationsController(IMediator mediator) : ControllerBase
             result.Status.ToString(),
             result.Message,
             result.SeatNumber,
-            result.ExpiresAtUtc));
+            result.ExpiresAtUtc,
+            result.RejectionReason));
     }
 }

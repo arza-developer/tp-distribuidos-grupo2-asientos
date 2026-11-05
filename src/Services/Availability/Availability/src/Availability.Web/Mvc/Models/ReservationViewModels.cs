@@ -24,7 +24,15 @@ public sealed class ReserveForm
 public sealed class ReservationStatusViewModel
 {
     public required ReservationStatusResult Result { get; init; }
-
+    public string Message => Result.Status switch
+    {
+        ReservationStatus.Pending => "Su reserva aún no fue procesada",
+        ReservationStatus.Retained => "Se ha generado su reserva, esta pendiente de confirmación de pago",
+        ReservationStatus.Confirmed => "Reserva confirmada!",
+        ReservationStatus.Rejected => "Su reserva se ha rechazado",
+        ReservationStatus.Expired => "Su reserva a expirado por no confirmarse un pago",
+        _ => ""
+    };
     public string StatusLabel => Result.Status switch
     {
         ReservationStatus.Pending => "Pendiente de procesamiento",
