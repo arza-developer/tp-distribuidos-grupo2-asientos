@@ -1,25 +1,16 @@
 # Diagramas de Arquitectura de Software
-**Materia:** Programación IV / Sistemas Distribuidos - UTN FRBA  
-**Trabajo Práctico:** Sistema de Reserva de Asientos - Grupo 2  
-**Estilo Arquitectónico:** Microservicios  
+**Materia:** Programación IV / Sistemas Distribuidos - UTN FRBA 
+**Trabajo Práctico:** Sistema de Reserva de Asientos - Grupo 2 
+**Estilo Arquitectónico:** Microservicios 
 
 ---
 
 ## 1. Diagrama General del Sistema y Despliegue (Requisitos 3.d, 3.g, 3.h)
-El sistema adopta un estilo de **Microservicios** con persistencia políglota y bases de datos aisladas (*Database-per-Service*).  
+El sistema adopta un estilo de **Microservicios** con persistencia políglota y bases de datos aisladas (*Database-per-Service*). 
 La interacción entre **Availability** y **Booking** se realiza a través de un Message Broker asíncrono (**Azure Service Bus Cloud**, topic `grupo2-booking-topic`), marcando la frontera estricta de **Consistencia Eventual (*Eventual Consistency*)**.
 
 ```mermaid
-%%{init: {
-  'theme': 'base',
-  'themeVariables': {
-    'fontSize': '13px',
-    'fontFamily': 'Segoe UI, Helvetica, sans-serif',
-    'textColor': '#f8fafc',
-    'lineColor': '#94a3b8',
-    'edgeLabelBackground': '#1e293b'
-  }
-}}%%
+%%{init: {'theme': 'neutral'}}%%
 flowchart TB
     subgraph External["Clientes Externos"]
         UserBrowser["Navegador Web / Cliente HTTP\n(IP Pública)"]
@@ -74,15 +65,14 @@ flowchart TB
     NotifWorker -.->|"6. Notifica confirmación al usuario"| UserBrowser
     AvailWeb -->|"Consulta estado (Tracking M2M)"| BookingApi
 
-    %% Paleta de colores para cada Microservicio / Rol
-    classDef client fill:#0284c7,stroke:#38bdf8,stroke-width:2px,color:#ffffff;
-    classDef auth fill:#7c3aed,stroke:#a855f7,stroke-width:2px,color:#ffffff;
-    classDef avail fill:#0d9488,stroke:#14b8a6,stroke-width:2px,color:#ffffff;
-    classDef broker fill:#d97706,stroke:#f59e0b,stroke-width:2px,color:#ffffff;
-    classDef booking fill:#16a34a,stroke:#22c55e,stroke-width:2px,color:#ffffff;
-    classDef payment fill:#4f46e5,stroke:#818cf8,stroke-width:2px,color:#ffffff;
-    classDef notif fill:#e11d48,stroke:#fb7185,stroke-width:2px,color:#ffffff;
-    classDef db fill:#334155,stroke:#64748b,stroke-width:2px,color:#ffffff;
+    classDef client fill:#0284c7,stroke:#0369a1,color:#ffffff;
+    classDef auth fill:#7c3aed,stroke:#a855f7,color:#ffffff;
+    classDef avail fill:#0d9488,stroke:#14b8a6,color:#ffffff;
+    classDef broker fill:#d97706,stroke:#f59e0b,color:#ffffff;
+    classDef booking fill:#16a34a,stroke:#22c55e,color:#ffffff;
+    classDef payment fill:#4f46e5,stroke:#818cf8,color:#ffffff;
+    classDef notif fill:#e11d48,stroke:#fb7185,color:#ffffff;
+    classDef db fill:#334155,stroke:#64748b,color:#ffffff;
 
     class UserBrowser client;
     class ExtIdP,AuthServer auth;
@@ -93,38 +83,16 @@ flowchart TB
     class NotifWorker notif;
     class AvailDb,BookingDb,PaymentDb db;
 
-    %% Contornos de subsistemas
-    style External stroke:#38bdf8,stroke-width:1.5px,stroke-dasharray: 4 4,fill:none
-    style IdentityFederation stroke:#a855f7,stroke-width:1.5px,stroke-dasharray: 4 4,fill:none
-    style AvailabilityBoundary stroke:#14b8a6,stroke-width:1.5px,stroke-dasharray: 4 4,fill:none
-    style AsyncBoundary fill:#1e293b,stroke:#f59e0b,stroke-width:2px,stroke-dasharray: 6 6,color:#fef3c7
-    style BookingBoundary stroke:#22c55e,stroke-width:1.5px,stroke-dasharray: 4 4,fill:none
-    style PaymentBoundary stroke:#818cf8,stroke-width:1.5px,stroke-dasharray: 4 4,fill:none
-    style NotificationBoundary stroke:#fb7185,stroke-width:1.5px,stroke-dasharray: 4 4,fill:none
+    style AsyncBoundary fill:none,stroke:#d97706,stroke-width:2px,stroke-dasharray: 5 5;
 ```
-
-> **Nota de Cátedra sobre Consistencia Eventual (Requisito 3.g):**  
-> Cuando el cliente solicita reservar un asiento, **Availability** valida la existencia en catálogo y responde **inmediatamente con código HTTP 202 Accepted**, registrando la solicitud localmente y enviando el evento al broker. La confirmación definitiva la ejecuta **Booking** de forma asíncrona; la consistencia entre catálogo y reserva es **eventual**.
 
 ---
 
 ## 2. Diagrama de Arquitectura: Availability Site / API (Requisito 3.a, 3.i)
 Sigue estrictamente el patrón **Clean Architecture (Onion Architecture)** con **Dominio Anémico**:
-- Las dependencias apuntan **hacia adentro**.
-- `Availability.Domain` no tiene dependencias de infraestructura ni frameworks.
-- La persistencia y el cliente de mensajería implementan interfaces definidas en la capa de aplicación.
 
 ```mermaid
-%%{init: {
-  'theme': 'base',
-  'themeVariables': {
-    'fontSize': '13px',
-    'fontFamily': 'Segoe UI, Helvetica, sans-serif',
-    'textColor': '#f8fafc',
-    'lineColor': '#94a3b8',
-    'edgeLabelBackground': '#1e293b'
-  }
-}}%%
+%%{init: {'theme': 'neutral'}}%%
 flowchart TD
     subgraph PresentationLayer["Capa de Presentación & Web (Availability.Web)"]
         MvcControllers["MVC Controllers (Account, Home, Reservation)"]
@@ -161,21 +129,15 @@ flowchart TD
     RepoImpl -.->|"Implementa"| PortsIn
     BusPublisher -.->|"Implementa"| PortsIn
 
-    %% Colores por Capa de Clean Architecture
-    classDef presentation fill:#0284c7,stroke:#38bdf8,stroke-width:2px,color:#ffffff;
-    classDef application fill:#7c3aed,stroke:#a855f7,stroke-width:2px,color:#ffffff;
-    classDef domain fill:#ea580c,stroke:#fb923c,stroke-width:2px,color:#ffffff;
-    classDef infra fill:#334155,stroke:#64748b,stroke-width:2px,color:#ffffff;
+    classDef presentation fill:#0284c7,stroke:#38bdf8,color:#ffffff;
+    classDef application fill:#7c3aed,stroke:#a855f7,color:#ffffff;
+    classDef domain fill:#ea580c,stroke:#fb923c,color:#ffffff;
+    classDef infra fill:#334155,stroke:#64748b,color:#ffffff;
 
     class MvcControllers,ApiControllers,RazorViews presentation;
     class Commands,Queries,PortsIn application;
     class Entities,Enums,Exceptions domain;
     class EFCore,RepoImpl,BusPublisher,AuthClients infra;
-
-    style PresentationLayer stroke:#38bdf8,stroke-width:1.5px,stroke-dasharray: 4 4,fill:none
-    style ApplicationLayer stroke:#a855f7,stroke-width:1.5px,stroke-dasharray: 4 4,fill:none
-    style DomainLayer stroke:#fb923c,stroke-width:1.5px,stroke-dasharray: 4 4,fill:none
-    style InfrastructureLayer stroke:#94a3b8,stroke-width:1.5px,stroke-dasharray: 4 4,fill:none
 ```
 
 ---
@@ -184,16 +146,7 @@ flowchart TD
 Implementado bajo el patrón arquitectónico clásico **N-Layer (Multicapa)** con **Dominio Anémico**:
 
 ```mermaid
-%%{init: {
-  'theme': 'base',
-  'themeVariables': {
-    'fontSize': '13px',
-    'fontFamily': 'Segoe UI, Helvetica, sans-serif',
-    'textColor': '#f8fafc',
-    'lineColor': '#94a3b8',
-    'edgeLabelBackground': '#1e293b'
-  }
-}}%%
+%%{init: {'theme': 'neutral'}}%%
 flowchart TD
     subgraph Presentation["Capa de Presentación (Presentation / Web API)"]
         BookingsCtrl["BookingsController (REST Endpoints)"]
@@ -221,18 +174,13 @@ flowchart TD
     Repo --> Context
     Context --> Entities
 
-    %% Colores N-Layer
-    classDef presLayer fill:#0284c7,stroke:#38bdf8,stroke-width:2px,color:#ffffff;
-    classDef bizLayer fill:#16a34a,stroke:#22c55e,stroke-width:2px,color:#ffffff;
-    classDef dataLayer fill:#4f46e5,stroke:#818cf8,stroke-width:2px,color:#ffffff;
+    classDef presLayer fill:#0284c7,stroke:#38bdf8,color:#ffffff;
+    classDef bizLayer fill:#16a34a,stroke:#22c55e,color:#ffffff;
+    classDef dataLayer fill:#4f46e5,stroke:#818cf8,color:#ffffff;
 
     class BookingsCtrl,QueueWorker,ExpireWorker presLayer;
     class IBookingSvc,BookingSvc,DTOs bizLayer;
     class Repo,Context,PaymentCli,AuthCli,Entities dataLayer;
-
-    style Presentation stroke:#38bdf8,stroke-width:1.5px,stroke-dasharray: 4 4,fill:none
-    style Business stroke:#22c55e,stroke-width:1.5px,stroke-dasharray: 4 4,fill:none
-    style DataAccess stroke:#818cf8,stroke-width:1.5px,stroke-dasharray: 4 4,fill:none
 ```
 
 ---
@@ -241,16 +189,7 @@ flowchart TD
 Diseñado bajo patrón **N-Layer**, exponiendo interfaz de alto rendimiento HTTP/2 con Protobuf:
 
 ```mermaid
-%%{init: {
-  'theme': 'base',
-  'themeVariables': {
-    'fontSize': '13px',
-    'fontFamily': 'Segoe UI, Helvetica, sans-serif',
-    'textColor': '#f8fafc',
-    'lineColor': '#94a3b8',
-    'edgeLabelBackground': '#1e293b'
-  }
-}}%%
+%%{init: {'theme': 'neutral'}}%%
 flowchart TD
     subgraph GrpcPresentation["Capa gRPC / Exposición"]
         GrpcProto["Contrato Protobuf (payment.proto)"]
@@ -272,18 +211,13 @@ flowchart TD
         PaymentDb --> TxEntity
     end
 
-    %% Colores gRPC N-Layer
-    classDef grpcPres fill:#7c3aed,stroke:#a855f7,stroke-width:2px,color:#ffffff;
-    classDef grpcBiz fill:#e11d48,stroke:#fb7185,stroke-width:2px,color:#ffffff;
-    classDef grpcData fill:#0d9488,stroke:#14b8a6,stroke-width:2px,color:#ffffff;
+    classDef grpcPres fill:#7c3aed,stroke:#a855f7,color:#ffffff;
+    classDef grpcBiz fill:#e11d48,stroke:#fb7185,color:#ffffff;
+    classDef grpcData fill:#0d9488,stroke:#14b8a6,color:#ffffff;
 
     class GrpcProto,GrpcService grpcPres;
     class TxValidation,ChaosSwitch grpcBiz;
     class PaymentDb,TxEntity grpcData;
-
-    style GrpcPresentation stroke:#a855f7,stroke-width:1.5px,stroke-dasharray: 4 4,fill:none
-    style GrpcBusiness stroke:#fb7185,stroke-width:1.5px,stroke-dasharray: 4 4,fill:none
-    style GrpcDataAccess stroke:#14b8a6,stroke-width:1.5px,stroke-dasharray: 4 4,fill:none
 ```
 
 ---
@@ -292,16 +226,7 @@ flowchart TD
 Muestra el ciclo de vida completo de una solicitud de reserva, incluyendo la validación síncrona en el frontend/API, la frontera asíncrona de consistencia eventual y la resiliencia en el cobro con Polly.
 
 ```mermaid
-%%{init: {
-  'theme': 'base',
-  'themeVariables': {
-    'fontSize': '12px',
-    'fontFamily': 'Segoe UI, Helvetica, sans-serif',
-    'primaryTextColor': '#f8fafc',
-    'edgeLabelBackground': '#1e293b',
-    'lineColor': '#94a3b8'
-  }
-}}%%
+%%{init: {'theme': 'neutral'}}%%
 sequenceDiagram
     autonumber
     actor User as Usuario / Browser
@@ -345,7 +270,6 @@ sequenceDiagram
 ```
 
 ### Matriz de Mapeo: Excepciones de Dominio a Códigos HTTP/gRPC
-
 | Escenario / Excepción | Capa Origen | Código de Respuesta | Efecto en el Sistema |
 | :--- | :--- | :--- | :--- |
 | **Happy Path (Encolado)** | `Availability.Web` | `HTTP 202 Accepted` | Solicitud aceptada en broker; consistencia eventual en marcha. |

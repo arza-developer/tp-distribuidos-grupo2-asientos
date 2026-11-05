@@ -1,10 +1,10 @@
 # Diagrama de Secuencia: Flujo de Testing E2E
-**Cátedra:** Programación IV / Sistemas Distribuidos - UTN FRBA  
-**Requisito:** 3.j (Ejecución automatizada de Happy Path y Fallo de Componente)  
+**Cátedra:** Programación IV / Sistemas Distribuidos - UTN FRBA 
+**Requisito:** 3.j (Ejecución automatizada de Happy Path y Fallo de Componente) 
 **Script:** `scripts/test-e2e-scenarios.sh`
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#f8fafc', 'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'edgeLabelBackground': '#1e293b', 'tertiaryColor': '#0f172a', 'fontSize': '13px' }}}%%
+%%{init: {'theme': 'neutral'}}%%
 sequenceDiagram
     autonumber
     actor Runner as Test Runner (Bash)
@@ -16,33 +16,26 @@ sequenceDiagram
     participant Notif as Notifications Worker
 
     %% ESCENARIO 1: HAPPY PATH
-    rect rgb(30, 41, 59)
-    Note over Runner,Notif: Escenario 1: Flujo estandar (Happy Path)
+    rect rgb(240, 253, 244)
+    Note over Runner,Notif: Escenario 1: Flujo estándar (Happy Path)
     Runner->>Auth: POST /connect/token (grant_type=password)
     Auth-->>Runner: 200 OK (JWT Bearer Token)
-
-    Runner->>Avail: GET /api/seats (Consulta catalogo publico)
+    Runner->>Avail: GET /api/seats (Consulta catálogo público)
     Avail-->>Runner: 200 OK (Asiento A-1 libre)
-
     Runner->>Avail: POST /api/reservations (Asiento A-1, Bearer JWT)
     Avail->>Avail: Registra solicitud local (Pending) y bloquea asiento
     Avail->>Broker: Publica ReservationRequestedEvent
     Avail-->>Runner: 202 Accepted (Location: /api/reservations/{id})
-
-    Broker->>Booking: Entrega mensaje (Peek-Lock, suscripcion 'booking')
+    Broker->>Booking: Entrega mensaje (Peek-Lock, suscripción 'booking')
     Booking->>Booking: TryRetainReservationAsync (Inserta Retained en booking.db)
-
     Booking->>Auth: POST /connect/token (grant_type=client_credentials)
     Auth-->>Booking: 200 OK (Token M2M)
-
     Booking->>Payment: gRPC ProcessPayment (HTTP/2, Bearer M2M)
     Payment-->>Booking: PaymentResponse (IsSuccess=true, TxId=1)
-
     Booking->>Booking: ConfirmReservationAsync (Status = Confirmed en booking.db)
     Booking->>Broker: CompleteMessageAsync (Elimina mensaje del broker)
     Booking-)Notif: ReservationConfirmed (CorrelationId propagado)
-    Notif->>Notif: Registra auditoria en log
-
+    Notif->>Notif: Registra auditoría en log
     loop Sondeo con backoff progresivo
         Runner->>Avail: GET /api/reservations/{id}
         Avail->>Booking: GET /api/bookings/{id} (Token M2M)
@@ -53,37 +46,30 @@ sequenceDiagram
     end
 
     %% ESCENARIO 2: CHAOS PATH
-    rect rgb(69, 10, 10)
+    rect rgb(254, 242, 242)
     Note over Runner,Payment: Escenario 2: Falla del servicio de pagos (Chaos Path)
     Runner->>Payment: docker stop seats-payment-grpc
     Note over Payment: Proceso detenido (puerto 5103 no disponible)
-
     Runner->>Avail: GET /api/seats
-    Avail-->>Runner: 200 OK (Catalogo publico operativo)
-
+    Avail-->>Runner: 200 OK (Catálogo público operativo)
     Runner->>Avail: POST /api/reservations (Asiento A-2, Bearer JWT)
     Avail->>Broker: Publica ReservationRequestedEvent
     Avail-->>Runner: 202 Accepted (Status: Pending)
-
     Broker->>Booking: Entrega mensaje (Peek-Lock)
     Booking->>Booking: TryRetainReservationAsync (Inserta Retained en booking.db)
-
     Booking->>Payment: gRPC ProcessPayment
-    Payment--XBooking: Error de conexion (SocketException / Unavailable)
-
+    Payment--XBooking: Error de conexión (SocketException / Unavailable)
     Note over Booking: Pipeline Polly: Retry (x2 con jitter) y Circuit Breaker
     Booking->>Booking: Captura PaymentUnavailableException
     Booking->>Broker: AbandonMessageAsync (Devuelve mensaje a la cola)
     Note over Booking: Estado permanece en Retained en booking.db
-
-    loop Verificacion de estado
+    loop Verificación de estado
         Runner->>Avail: GET /api/reservations/{id}
         Avail->>Booking: GET /api/bookings/{id} (Token M2M)
         Booking-->>Avail: 200 OK (Status: Retained)
         Avail-->>Runner: 200 OK (Status: Retained)
     end
     Note over Runner: Criterio: la reserva no se confirma sin cobro
-
     Runner->>Payment: docker start seats-payment-grpc
     Note over Runner: Criterio: servicio de pagos restablecido
     end

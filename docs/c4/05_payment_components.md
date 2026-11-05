@@ -5,16 +5,7 @@
 Expone el contrato de cobro financiero y alberga el interruptor de fallos simulados (*Chaos Switch*) para las pruebas de resiliencia.
 
 ```mermaid
-%%{init: {
-  'theme': 'base',
-  'themeVariables': {
-    'fontSize': '13px',
-    'fontFamily': 'Segoe UI, Helvetica, sans-serif',
-    'textColor': '#f8fafc',
-    'lineColor': '#94a3b8',
-    'edgeLabelBackground': '#1e293b'
-  }
-}}%%
+%%{init: {'theme': 'neutral'}}%%
 flowchart TD
     subgraph Presentation["Capa de Exposición gRPC (HTTP/2)"]
         ProtoContract["payment.proto\n[Contrato estricto Protobuf]"]
@@ -24,23 +15,23 @@ flowchart TD
 
     subgraph Business["Capa de Negocio y Simulación"]
         TxVal["Validación Financiera de Transacción"]
-        Chaos["Chaos Switch\n(Simulador de caída de red / latencia)"]
+        Chaos["Chaos Switch\n[Flag SimulateFailure en appsettings]"]
         GrpcSvc --> TxVal
         TxVal --> Chaos
     end
 
-    subgraph DataAccess["Capa de Datos y Registro Contable"]
-        Ledger["PaymentDb / InMemory Ledger"]
-        TxRec["PaymentTransaction\n[Registro Inmutable de Cobro]"]
-        Chaos --> Ledger
-        Ledger --> TxRec
+    subgraph DataAccess["Capa de Datos y Registro"]
+        PaymentDb["PaymentDbContext\n[SQLite: payment.db]"]
+        TxRec["PaymentTransaction\n[Idempotencia contable por CorrelationId]"]
+        Chaos --> PaymentDb
+        PaymentDb --> TxRec
     end
 
-    classDef pres fill:#7c3aed,stroke:#5b21b6,color:#fff;
-    classDef biz fill:#e11d48,stroke:#be123c,color:#fff;
-    classDef data fill:#0d9488,stroke:#0f766e,color:#fff;
+    classDef pres fill:#7c3aed,stroke:#5b21b6,color:#ffffff;
+    classDef biz fill:#e11d48,stroke:#be123c,color:#ffffff;
+    classDef data fill:#0d9488,stroke:#0f766e,color:#ffffff;
 
     class ProtoContract,GrpcSvc pres;
     class TxVal,Chaos biz;
-    class Ledger,TxRec data;
+    class PaymentDb,TxRec data;
 ```

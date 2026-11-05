@@ -1,9 +1,9 @@
 # Diagrama de Secuencia: Consistencia Eventual y Frontera AP
-**Cátedra:** Programación IV / Sistemas Distribuidos - UTN FRBA  
+**Cátedra:** Programación IV / Sistemas Distribuidos - UTN FRBA 
 **Requisitos:** 3.a, 3.b, 3.g (Frontera de Consistencia Eventual y Asincronismo)
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#f8fafc', 'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'edgeLabelBackground': '#1e293b', 'tertiaryColor': '#0f172a', 'fontSize': '13px' }}}%%
+%%{init: {'theme': 'neutral'}}%%
 sequenceDiagram
     autonumber
     actor Cliente as Cliente HTTP
@@ -14,24 +14,23 @@ sequenceDiagram
     participant Notif as Notifications Worker
 
     Cliente->>Avail: POST /api/reservations (Asiento A-1, Bearer JWT)
-    Note over Avail: Valida catalogo local, guarda solicitud<br/>y marca asiento no disponible temporalmente
+    Note over Avail: Valida catálogo local, guarda solicitud<br/>y marca asiento no disponible temporalmente
     Avail->>Broker: Publica ReservationRequestedEvent
     Avail-->>Cliente: HTTP 202 Accepted (Location: /api/reservations/{id})
     Note over Cliente: Frontera AP: respuesta inmediata sin esperar cobro
 
-    Broker->>Booking: Entrega mensaje (Peek-Lock en suscripcion 'booking')
-    
-    critical Procesamiento asincrono en Booking
-        Booking->>Booking: Inserta reserva (Status: Retained, TTL: 10m)
-        Booking->>Payment: gRPC ProcessPayment(ReservationId, Amount)
-    option Pago exitoso
+    Broker->>Booking: Entrega mensaje (Peek-Lock en suscripción 'booking')
+    Booking->>Booking: Inserta reserva (Status: Retained, TTL: 10m)
+    Booking->>Payment: gRPC ProcessPayment(ReservationId, Amount)
+
+    alt Pago exitoso
         Payment-->>Booking: PaymentResponse(IsSuccess=true)
         Booking->>Booking: Actualiza estado a Confirmed en booking.db
-        Booking->>Broker: CompleteMessageAsync (Confirma recepcion)
+        Booking->>Broker: CompleteMessageAsync (Confirma recepción)
         Booking-)Notif: Emite evento ReservationConfirmed
-    option Falla de pasarela (gRPC Unavailable / Timeout)
+    else Falla de pasarela (gRPC Unavailable / Timeout)
         Payment--XBooking: RpcException / Circuit Breaker abierto
-        Booking->>Booking: Captura excepcion, mantiene Retained en base
+        Booking->>Booking: Captura excepción, mantiene Retained en base
         Booking->>Broker: AbandonMessageAsync (Libera mensaje para reintento)
         Note over Booking: Si no se recupera, ReservationExpirationWorker<br/>vence la reserva tras 10m (barrido cada 15s)
     end

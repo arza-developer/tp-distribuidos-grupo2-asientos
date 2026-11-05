@@ -1,9 +1,9 @@
 # Máquina de Estados de la Reserva y Ciclo de Vida Distribuido
-**Cátedra:** Programación IV / Sistemas Distribuidos - UTN FRBA  
+**Cátedra:** Programación IV / Sistemas Distribuidos - UTN FRBA 
 **Modelado:** Alineado a la implementación real de `BookingService.cs` y `ReservationExpirationWorker.cs`.
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#f8fafc', 'edgeLabelBackground': '#1e293b', 'lineColor': '#94a3b8' }}}%%
+%%{init: {'theme': 'neutral'}}%%
 stateDiagram-v2
     [*] --> Pending : Availability recibe solicitud (Paso 3, 202 Accepted)
     

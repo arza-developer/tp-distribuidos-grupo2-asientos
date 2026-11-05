@@ -9,16 +9,7 @@ Las dependencias apuntan **estrictamente hacia adentro**:
 - **Infrastructure:** Implementación de persistencia EF Core, cliente de Service Bus y tokens M2M.
 
 ```mermaid
-%%{init: {
-  'theme': 'base',
-  'themeVariables': {
-    'fontSize': '13px',
-    'fontFamily': 'Segoe UI, Helvetica, sans-serif',
-    'textColor': '#f8fafc',
-    'lineColor': '#94a3b8',
-    'edgeLabelBackground': '#1e293b'
-  }
-}}%%
+%%{init: {'theme': 'neutral'}}%%
 flowchart TD
     subgraph Presentation["Capa de Presentación (Availability.Web :5101)"]
         MvcCtrl["ReservationController & AccountController\n[MVC / Razor UI]"]
@@ -50,10 +41,10 @@ flowchart TD
     EfRepo -.->|"Implementa"| Ports
     BusPub -.->|"Implementa"| Ports
 
-    classDef pres fill:#0284c7,stroke:#0369a1,color:#fff;
-    classDef app fill:#7c3aed,stroke:#5b21b6,color:#fff;
-    classDef dom fill:#ea580c,stroke:#c2410c,color:#fff;
-    classDef inf fill:#475569,stroke:#334155,color:#fff;
+    classDef pres fill:#0284c7,stroke:#0369a1,color:#ffffff;
+    classDef app fill:#7c3aed,stroke:#5b21b6,color:#ffffff;
+    classDef dom fill:#ea580c,stroke:#c2410c,color:#ffffff;
+    classDef inf fill:#334155,stroke:#1e293b,color:#ffffff;
 
     class MvcCtrl,ApiCtrl pres;
     class CmdReq,QuerySeats,Ports app;

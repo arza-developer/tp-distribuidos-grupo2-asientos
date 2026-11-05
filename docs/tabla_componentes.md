@@ -1,7 +1,6 @@
 # Tabla de Interpretación del Diagrama de Arquitectura
-
-**Producto:** Sistema de Reserva de Asientos - Grupo 2  
-**Cátedra:** Programación IV / Sistemas Distribuidos - UTN FRBA  
+**Producto:** Sistema de Reserva de Asientos - Grupo 2 
+**Cátedra:** Programación IV / Sistemas Distribuidos - UTN FRBA 
 
 | Componente | Rol | Justifique la participación en el sistema |
 |:---|:---|:---|
@@ -10,9 +9,9 @@
 | **SQL Database (Availability)** | Almacén de Estado Local (Catálogo) | Almacena los eventos y la disposición física de los asientos. Garantiza el aislamiento de datos (*Database-per-Service*). |
 | **Message Broker (Azure Service Bus)** | Middleware de Integración Asíncrona | Buffer de mensajes que desacopla temporalmente Availability de Booking. Provee resiliencia, balanceo de carga entre réplicas y absorbe picos de tráfico. Marca la frontera de consistencia eventual. |
 | **Booking REST API** | Procesamiento Central (N-Layer) | Núcleo transaccional de reservas. Gestiona la máquina de estados (`Retenida`, `Confirmada`, `Rechazada`, `Vencida`), resuelve condiciones de carrera mediante índices únicos y orquesta el cobro. |
-| **SQL Database (Booking)** | Almacén Transaccional de Reservas | Persiste el estado de las reservas y asegura la exclusión mutua para que un mismo asiento no se reserve dos veces. |
-| **Payment gRPC API** | Pasarela de Pagos (gRPC Server) | Procesa transacciones financieras. Expone un contrato estricto binario de alto rendimiento vía HTTP/2 y Protobuf con endpoints para simular caídas. Valida idempotencia contable. |
-| **SQL Database (Payment)** | Libro Mayor Contable (Ledger) | Registra el histórico inmutable de transacciones de pago, cobros exitosos y motivos de rechazo financiero. |
+| **SQL Database (Booking)** | Almacén Transaccional de Reservas | Persiste el estado de las reservas y asegura la exclusión mutua mediante un índice único compuesto sobre `(EventId, SeatNumber)` para evitar doble reserva física. |
+| **Payment gRPC API** | Pasarela de Pagos (gRPC Server) | Procesa transacciones financieras. Expone un contrato estricto binario de alto rendimiento vía HTTP/2 y Protobuf con soporte de simulación de fallos vía configuración (`SimulateFailure`). Valida idempotencia contable. |
+| **SQL Database (Payment)** | Registro de Pagos (Ledger) | Registra el histórico de transacciones en la tabla `PaymentTransactions` para asegurar idempotencia mediante `CorrelationId`. |
 | **Authorization Server** | Proveedor de Identidad (IdP / OAuth2) | Centraliza la seguridad emitiendo tokens JWT tanto para usuarios finales como para la autenticación servicio a servicio (M2M / Client Credentials). |
 | **3rd Party Identity Providers** | Federación de Identidad Externa | Simula proveedores externos (Google/GitHub) que delegan la autenticación de usuarios al Authorization Server institucional mediante OIDC y PKCE. |
 | **Notification Service (Agregado 3.h)** | Consumidor de Eventos (Event Consumer) | Servicio autónomo que escucha eventos de reservas confirmadas desde el Broker e informa al usuario de manera asíncrona (Eventual Consistency). |
