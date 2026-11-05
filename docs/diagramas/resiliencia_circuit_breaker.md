@@ -30,5 +30,5 @@ sequenceDiagram
     Booking->>Polly: Siguiente invocación durante corte
     Polly-->>Booking: BrokenCircuitException inmediato (Fail-Fast sin tráfico de red)
     Booking->>Booking: Captura excepción y eleva PaymentUnavailableException
-    Note over Booking: BookingQueueConsumer ejecuta AbandonMessageAsync;<br/>reserva permanece Retained hasta reintento o vencimiento TTL
+    Note over Booking: BookingQueueConsumer ejecuta AbandonMessageAsync<br/>reserva permanece Retained hasta reintento o vencimiento TTL
 ```
