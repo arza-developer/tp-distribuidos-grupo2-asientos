@@ -1,6 +1,5 @@
 @authUrl = http://localhost:5104
 @availabilityUrl = http://localhost:5101
-@bookingUrl = http://localhost:5102
 @eventId = 3fa85f64-5717-4562-b3fc-2c963f66afa6
 @userId = 7bb85f64-1111-2222-3333-2c963f66af99
 
@@ -13,6 +12,9 @@ Content-Type: application/x-www-form-urlencoded
 
 grant_type=password&username=cliente1&password=cliente1-dev
 
+?? status == 200
+?? js response.parsedBody.access_token exists
+
 ### Guardamos el token en una variable
 @authToken = {{login.access_token}}
 
@@ -22,6 +24,8 @@ grant_type=password&username=cliente1&password=cliente1-dev
 ### ==================================================================
 GET {{availabilityUrl}}/api/seats
 Accept: application/json
+
+?? status == 200
 
 
 ### ==================================================================
@@ -39,6 +43,9 @@ Content-Type: application/json
   "price": 15000.0
 }
 
+?? status == 202
+?? js response.parsedBody.reservationId exists
+
 ### Extraemos el ID de la reserva creada
 @reservationId = {{createReservation.reservationId}}
 
@@ -46,12 +53,103 @@ Content-Type: application/json
 ### ==================================================================
 ### 4. PASO 7 Consigna: Polling de Estado a través de Availability
 ### ==================================================================
+# @sleep 10000
 GET {{availabilityUrl}}/api/reservations/{{reservationId}}
+Authorization: Bearer {{authToken}}
 Accept: application/json
+
+?? status == 200
+?? js response.parsedBody.status == Confirmed
+
+### ==================================================================
+### 5. Asiento ocupado (409)
+### ==================================================================
+# 
+POST {{availabilityUrl}}/api/reservations
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "eventId": "{{eventId}}",
+  "seatNumber": "A-1",
+  "userId": "{{userId}}",
+  "price": 15000.0
+}
+
+?? status == 409
+
+### ==================================================================
+### 6. Reserva sin token (401)
+### ==================================================================
+POST {{availabilityUrl}}/api/reservations
+content-type: application/json
+
+{
+  "eventId": "{{eventId}}",
+  "seatNumber": "A-2",
+  "userId": "{{userId}}",
+  "price": 15000.0
+}
+
+?? status == 401
+
+### ==================================================================
+### 7. CorrelationId
+### ==================================================================
+GET {{availabilityUrl}}/api/seats
+X-Correlation-ID: e2e-happy-001
+
+?? status == 200
+?? header x-correlation-id == e2e-happy-001
 
 
 ### ==================================================================
-### 5. PASO 7 Consigna: Verificación interna directa en Booking
+### SUITE 2: FALLO DE COMPONENTE (Payment caido)
 ### ==================================================================
-GET {{bookingUrl}}/api/bookings/{{reservationId}}
+
+### ==================================================================
+### 8. Apagar Payment y reservar igual
+### ==================================================================
+{{
+  console.info('Apagando Payment...');
+  require('child_process').execSync('docker stop seats-payment-grpc', { stdio: 'inherit' });
+}}
+# @name reservaSinPago
+POST {{availabilityUrl}}/api/reservations
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "eventId": "{{eventId}}",
+  "seatNumber": "B-1",
+  "userId": "{{userId}}",
+  "price": 12000.0
+}
+
+?? status == 202
+?? js response.parsedBody.reservationId exists
+
+### Guardamos el ID de la reserva sin pago
+@idSinPago = {{reservaSinPago.reservationId}}
+
+### ==================================================================
+### 9. La reserva termina rechazada
+### ==================================================================
+# @sleep 15000
+GET {{availabilityUrl}}/api/reservations/{{idSinPago}}
+Authorization: Bearer {{authToken}}
 Accept: application/json
+
+?? status == 200
+?? js response.parsedBody.status == Rejected
+
+### ==================================================================
+### 10. Volver a prender Payment
+### ==================================================================
+{{
+  console.info('Prendiendo Payment de nuevo...');
+  require('child_process').execSync('docker start seats-payment-grpc', { stdio: 'inherit' });
+}}
+GET {{availabilityUrl}}/api/seats
+
+?? status == 200
