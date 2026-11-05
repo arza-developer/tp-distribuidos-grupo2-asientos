@@ -81,15 +81,15 @@ services:
       context: .
       args:
         SERVICE_NAME: Booking.Api
-    # Rango de puertos dinámico: permite escalar réplicas (--scale booking-api=2) sin colisión de puertos
     ports:
-      - "5102-5110:5102"
+      - "5102:5102"
     environment:
       <<: *jwt-env
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_HTTP_PORTS: "5102"
-      # [Broker]: Booking consume el topic de Azure Service Bus (secreto en .env local, no versionado)
       ServiceBus__ConnectionString: "${SERVICEBUS_CONNECTION_STRING}"
+      Services__PaymentGrpc: "http://seats-payment-grpc:5103"
+      AuthServer__AuthenticationEndpoint: "http://auth-server:5104/connect/token"
     # [Decisión]: 2.0 CPUs para simular condiciones de carrera en acceso concurrente a asientos
     cpus: 2.0
     mem_limit: 512m
