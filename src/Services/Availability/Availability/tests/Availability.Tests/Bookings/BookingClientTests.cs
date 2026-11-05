@@ -7,6 +7,7 @@ using Availability.Infrastructure;
 using Availability.Infrastructure.Bookings;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Availability.Tests.Bookings;
@@ -38,19 +39,19 @@ public class BookingClientTests
     {
         var handler = new StubHandler(respond);
         var http = new HttpClient(handler) { BaseAddress = new Uri("http://booking.test/"), Timeout = timeout ?? TimeSpan.FromSeconds(5) };
-        return (new BookingClient(http, new FakeCorrelation()), handler);
+        return (new BookingClient(http, new FakeCorrelation(), NullLogger<BookingClient>.Instance), handler);
     }
 
     private static (BookingClient Client, StubHandler Handler) CreateReturning(HttpStatusCode status, string json) =>
         Create((_, _) => Task.FromResult(Json(status, json)));
 
     [Theory]
-    [InlineData("Retenida", ReservationStatus.Retained)]
-    [InlineData("Confirmada", ReservationStatus.Confirmed)]
-    [InlineData("Rechazada", ReservationStatus.Rejected)]
-    [InlineData("Vencida", ReservationStatus.Expired)]
-    [InlineData("retenida", ReservationStatus.Retained)]
-    public async Task GetStatus_MapsSpanishBookingStatusToEnum(string bookingStatus, ReservationStatus expected)
+    [InlineData("Retained", ReservationStatus.Retained)]
+    [InlineData("Confirmed", ReservationStatus.Confirmed)]
+    [InlineData("Rejected", ReservationStatus.Rejected)]
+    [InlineData("Expired", ReservationStatus.Expired)]
+    [InlineData("retained", ReservationStatus.Retained)]
+    public async Task GetStatus_MapsBookingStatusToEnum(string bookingStatus, ReservationStatus expected)
     {
         var (client, _) = CreateReturning(HttpStatusCode.OK, $$"""{"reservationId":"{{Guid.NewGuid()}}","seatNumber":"A-1","status":"{{bookingStatus}}"}""");
 
@@ -64,7 +65,7 @@ public class BookingClientTests
     {
         var expires = new DateTime(2026, 11, 1, 12, 0, 0, DateTimeKind.Utc);
         var (client, _) = CreateReturning(HttpStatusCode.OK,
-            $$"""{"ReservationId":"{{Guid.NewGuid()}}","SeatNumber":"B-1","Status":"Retenida","ExpiresAtUtc":"{{expires:O}}"}""");
+            $$"""{"ReservationId":"{{Guid.NewGuid()}}","SeatNumber":"B-1","Status":"Retained","ExpiresAtUtc":"{{expires:O}}"}""");
 
         var info = await client.GetStatusAsync(Guid.NewGuid());
 
@@ -75,7 +76,7 @@ public class BookingClientTests
     [Fact]
     public async Task GetStatus_WithoutExpiry_ReturnsNullExpiry()
     {
-        var (client, _) = CreateReturning(HttpStatusCode.OK, """{"seatNumber":"A-1","status":"Confirmada"}""");
+        var (client, _) = CreateReturning(HttpStatusCode.OK, """{"seatNumber":"A-1","status":"Confirmed"}""");
 
         Assert.Null((await client.GetStatusAsync(Guid.NewGuid()))!.ExpiresAtUtc);
     }
@@ -154,7 +155,7 @@ public class BookingClientTests
     public async Task GetStatus_SendsGetToExactUrl_WithCorrelationHeader()
     {
         var id = Guid.NewGuid();
-        var (client, handler) = CreateReturning(HttpStatusCode.OK, """{"seatNumber":"A-1","status":"Retenida"}""");
+        var (client, handler) = CreateReturning(HttpStatusCode.OK, """{"seatNumber":"A-1","status":"Retained"}""");
 
         await client.GetStatusAsync(id);
 
@@ -194,5 +195,46 @@ public class BookingClientTests
         var options = scope.ServiceProvider.GetRequiredService<IOptions<BookingOptions>>().Value;
         Assert.Equal("http://booking-api:5102", options.BaseUrl);
         Assert.Equal(9, options.TimeoutSeconds);
+    }
+
+    [Fact]
+    public async Task GetStatus_ParsesTheExactJsonBookingEmits_IncludingRejectionReason()
+    {
+        // Muestra con la forma que arma BookingsController de Booking (propiedades anónimas serializadas en camelCase).
+        const string bookingJson =
+            """{"reservationId":"6dd8bbba-dc01-4b06-8f37-f96c6177a2bd","seatNumber":"A-2","status":"Rejected","expiresAtUtc":null,"rejectionReason":"SeatOccupied"}""";
+        var (client, _) = CreateReturning(HttpStatusCode.OK, bookingJson);
+
+        var info = await client.GetStatusAsync(Guid.NewGuid());
+
+        Assert.Equal(ReservationStatus.Rejected, info!.Status);
+        Assert.Equal("A-2", info.SeatNumber);
+        Assert.Equal("SeatOccupied", info.RejectionReason);
+    }
+
+    [Fact]
+    public async Task GetStatus_WithoutRejectionReason_LeavesItNull()
+    {
+        var (client, _) = CreateReturning(HttpStatusCode.OK, """{"seatNumber":"A-1","status":"Retained","rejectionReason":null}""");
+
+        Assert.Null((await client.GetStatusAsync(Guid.NewGuid()))!.RejectionReason);
+    }
+
+    [Fact]
+    public async Task GetStatus_StatusOutsideBookingVocabulary_IsATechnicalFailure()
+    {
+        var (client, _) = CreateReturning(HttpStatusCode.OK, """{"seatNumber":"A-1","status":"Retenida"}""");
+
+        await Assert.ThrowsAsync<BookingUnavailableException>(() => client.GetStatusAsync(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public async Task GetStatus_PropagatesTheCorrelationIdToBooking()
+    {
+        var (client, handler) = CreateReturning(HttpStatusCode.OK, """{"seatNumber":"A-1","status":"Retained"}""");
+
+        await client.GetStatusAsync(Guid.NewGuid());
+
+        Assert.Equal("corr-7", Assert.Single(Assert.Single(handler.Requests).Headers.GetValues("X-Correlation-ID")));
     }
 }
