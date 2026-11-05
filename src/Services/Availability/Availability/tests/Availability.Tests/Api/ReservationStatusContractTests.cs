@@ -135,6 +135,24 @@ public class ReservationStatusContractTests : IClassFixture<AvailabilityApiFacto
         return request!.Status;
     }
 
+    [Fact]
+    public async Task Get_RejectedWithReason_ExposesRejectionReason_AndOtherwiseOmitsTheKey()
+    {
+        var (id, seat) = await CreateReservationAsync();
+        _factory.Booking.Result = new BookingStatusInfo(ReservationStatus.Rejected, null, seat, "SeatOccupied");
+
+        var rejected = await (await _client.GetAsync($"/api/reservations/{id}")).Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal("SeatOccupied", rejected.GetProperty("rejectionReason").GetString());
+
+        var (id2, seat2) = await CreateReservationAsync();
+        _factory.Booking.Result = new BookingStatusInfo(ReservationStatus.Retained, DateTime.UtcNow.AddMinutes(5), seat2);
+
+        var retained = await (await _client.GetAsync($"/api/reservations/{id2}")).Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.False(retained.TryGetProperty("rejectionReason", out _)); // aditivo: la clave solo aparece cuando hay motivo
+    }
+
     [Theory]
     [InlineData(ReservationStatus.Rejected)]
     [InlineData(ReservationStatus.Expired)]

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using Payment.Grpc.Services;
-using SeatsReservation.Auth; // Referencia requerida
+using Payment.Grpc.Business;
+using SeatsReservation.Auth;
+using Payment.Grpc.DataAccess;
 
 var builder = WebApplication.CreateBuilder(args);
 

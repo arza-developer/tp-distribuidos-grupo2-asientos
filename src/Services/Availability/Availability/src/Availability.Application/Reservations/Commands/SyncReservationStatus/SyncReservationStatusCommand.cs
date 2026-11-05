@@ -10,9 +10,12 @@ namespace Availability.Application.Reservations.Commands.SyncReservationStatus;
 public sealed record SyncReservationStatusCommand(Guid ReservationId) : IRequest<ReservationStatusResult>;
 
 /// <param name="ExpiresAtUtc">Solo informado mientras la reserva está retenida.</param>
+/// <param name="Message">Texto del estado para quien consulta (lo decide este handler).</param>
+/// <param name="RejectionReason">Motivo que informa Booking cuando rechazó la reserva; <c>null</c> en los demás estados.</param>
 public sealed record ReservationStatusResult(
     Guid ReservationId,
-    ReservationStatus Status,
-    string Message,
     string SeatNumber,
-    DateTime? ExpiresAtUtc);
+    ReservationStatus Status,
+    DateTime? ExpiresAtUtc,
+    string Message,
+    string? RejectionReason = null);
