@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Payment.Grpc.Domain;
 
-namespace Payment.Grpc.Services;
+namespace Payment.Grpc.DataAccess;
 
 public class PaymentDbContext : DbContext
 {
