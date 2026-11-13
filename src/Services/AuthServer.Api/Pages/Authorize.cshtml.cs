@@ -1,5 +1,6 @@
 using AuthServer.Api.Options;
 using AuthServer.Api.Services;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.WebUtilities;
@@ -16,15 +17,20 @@ public class AuthorizeModel : PageModel
     private readonly AuthorizationCodeStore _codes;
     private readonly ExternalLoginStore _externalLogins;
     private readonly ExternalIdpOptions _externalIdp;
+    private readonly GoogleLoginSettings _google;
 
     public AuthorizeModel(TokenService tokens, AuthorizationCodeStore codes,
-        ExternalLoginStore externalLogins, IOptions<ExternalIdpOptions> externalIdp)
+        ExternalLoginStore externalLogins, IOptions<ExternalIdpOptions> externalIdp, GoogleLoginSettings google)
     {
         _tokens = tokens;
         _codes = codes;
         _externalLogins = externalLogins;
         _externalIdp = externalIdp.Value;
+        _google = google;
     }
+
+    // La página muestra el botón "Continuar con Google" solo si hay credenciales de Google cargadas.
+    public bool GoogleEnabled => _google.Enabled;
 
     // Parámetros OAuth2 que manda el front en la dirección (query string).
     // SupportsGet = se leen al abrir la página. En el formulario viajan como campos ocultos.
@@ -50,7 +56,40 @@ public class AuthorizeModel : PageModel
         if (!ValidateRequest()) return BadRequestPage();
 
         // "idp_hint=external": la persona ya tocó "Ingresar con Proveedor Externo" en la app.
-        return IdpHint == "external" ? OnPostExternal() : Page();
+        // Si Google está configurado, el proveedor externo es Google; si no, el simulado (respaldo).
+        // "idp_hint=google" pide Google explícitamente.
+        if (IdpHint == "google" || (IdpHint == "external" && _google.Enabled)) return StartGoogle();
+        if (IdpHint == "external") return OnPostExternal();
+        return Page();
+    }
+
+    // Botón "Continuar con Google".
+    public IActionResult OnPostGoogle()
+    {
+        if (!ValidateRequest()) return BadRequestPage();
+        return StartGoogle();
+    }
+
+    // [3rd Party IdP - Google real]: anotamos el pedido del front y le pasamos el control al handler de Google.
+    // El handler arma la redirección a accounts.google.com con su propio state y PKCE, y a la vuelta
+    // (/signin-google) verifica la respuesta de Google y deja a la persona en la cookie temporal.
+    // Después vuelve a /external/google-callback con NUESTRO state, para retomar el pedido del front.
+    private IActionResult StartGoogle()
+    {
+        if (!_google.Enabled)
+        {
+            InvalidRequest = "El login con Google no está configurado en este servidor.";
+            return BadRequestPage();
+        }
+
+        var (externalState, _) = _externalLogins.Start(ClientId, RedirectUri, CodeChallenge, State);
+
+        var properties = new AuthenticationProperties
+        {
+            RedirectUri = QueryHelpers.AddQueryString("/external/google-callback", "state", externalState)
+        };
+
+        return Challenge(properties, GoogleLogin.Scheme);
     }
 
     // Botón "Ingresar" (usuario y contraseña de la boletería).

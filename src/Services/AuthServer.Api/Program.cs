@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using AuthServer.Api.Options;
 using AuthServer.Api.Services;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.WebUtilities;
 using SeatsReservation.Auth;
 using Serilog;
@@ -25,6 +26,45 @@ builder.Services.AddSingleton<TokenService>();
 builder.Services.AddSingleton<AuthorizationCodeStore>();
 builder.Services.AddSingleton<ExternalLoginStore>();
 builder.Services.AddJwtAuthentication(builder.Configuration);
+
+// [3rd Party IdP - Google real]: igual que el ejemplo del docente (AddGoogle de Microsoft).
+// Google solo confirma QUIÉN es la persona; el token lo sigue emitiendo este AuthServer.
+// Las credenciales NO se versionan: user-secrets en local, variables de entorno (.env) en Docker.
+// Sin credenciales, el login con Google queda apagado y se usa el proveedor simulado.
+var googleClientId = builder.Configuration["Authentication:Google:ClientId"];
+var googleClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
+var googleEnabled = !string.IsNullOrWhiteSpace(googleClientId) && !string.IsNullOrWhiteSpace(googleClientSecret);
+builder.Services.AddSingleton(new GoogleLoginSettings(googleEnabled));
+
+if (googleEnabled)
+{
+    builder.Services.AddAuthentication()
+        // Cookie temporal: el handler de Google deja ahí a la persona identificada, solo hasta que la leemos.
+        .AddCookie(GoogleLogin.CookieScheme, options =>
+        {
+            options.Cookie.Name = ".AuthServer.External";
+            options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
+        })
+        .AddGoogle(GoogleLogin.Scheme, "Google", options =>
+        {
+            options.SignInScheme = GoogleLogin.CookieScheme;
+            options.ClientId = googleClientId!;
+            options.ClientSecret = googleClientSecret!;
+            options.CallbackPath = GoogleLogin.CallbackPath;
+
+            // [TP en http://localhost]: la cookie que protege el state no exige HTTPS.
+            options.CorrelationCookie.SameSite = SameSiteMode.Lax;
+            options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+
+            // Si la persona cancela en Google o algo falla, mostramos una página de error en vez de una excepción.
+            options.Events.OnRemoteFailure = context =>
+            {
+                context.Response.Redirect("/external/google-error");
+                context.HandleResponse();
+                return Task.CompletedTask;
+            };
+        });
+}
 
 builder.Services.AddHttpClient<ExternalTokenValidator>(c => c.Timeout = TimeSpan.FromSeconds(5));
 builder.Services.AddRazorPages();
@@ -148,6 +188,44 @@ app.MapPost("/external/callback", async (HttpRequest request, ExternalLoginStore
     });
     return Results.Redirect(callbackUrl);
 });
+
+// [3rd Party IdP - Google real - vuelta]: el handler de Google ya verificó la respuesta (state, PKCE e id_token)
+// y dejó a la persona en la cookie temporal. Acá la leemos, la vinculamos con un usuario nuestro
+// y seguimos igual que siempre: código de un solo uso + PKCE para el front.
+if (googleEnabled)
+{
+    app.MapGet("/external/google-callback", async (HttpContext http, string? state, ExternalLoginStore externalLogins,
+        TokenService tokens, AuthorizationCodeStore codes) =>
+    {
+        var result = await http.AuthenticateAsync(GoogleLogin.CookieScheme);
+        await http.SignOutAsync(GoogleLogin.CookieScheme); // la cookie temporal ya no hace falta
+
+        // "sub" de Google: el identificador único y permanente de la cuenta.
+        var googleSub = result.Succeeded ? result.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value : null;
+        if (string.IsNullOrEmpty(googleSub))
+            return ErrorPage("No se pudo verificar tu identidad con Google.");
+
+        // ¿Es la vuelta de un login que empezamos nosotros? (state de un solo uso)
+        var pending = externalLogins.Take(state ?? "");
+        if (pending is null)
+            return ErrorPage("El inicio de sesión venció o no es válido. Volvé a intentarlo.");
+
+        // Google dice QUIÉN es; nuestro sistema decide el UserId y el rol.
+        var user = tokens.ResolveExternalUser("google", googleSub);
+        Log.Information("Login con Google: usuario {UserId}", user.UserId);
+
+        var code = codes.Create(pending.ClientId, pending.RedirectUri, pending.CodeChallenge, user.UserId, user.Role);
+        var callbackUrl = QueryHelpers.AddQueryString(pending.RedirectUri, new Dictionary<string, string?>
+        {
+            ["code"] = code,
+            ["state"] = pending.FrontState
+        });
+        return Results.Redirect(callbackUrl);
+    });
+
+    app.MapGet("/external/google-error", () =>
+        ErrorPage("No se pudo iniciar sesión con Google (cancelado o rechazado). Volvé a intentarlo."));
+}
 
 app.MapGet("/", () => "Auth Server running on port 5104. Use POST /connect/token to get JWT.");
 

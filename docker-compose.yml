@@ -35,6 +35,10 @@ services:
       ASPNETCORE_HTTP_PORTS: "5104"
       # [3rd Party IdP]: adentro de Docker el proveedor se llama "external-idp", no localhost
       ExternalIdp__Authority: "http://external-idp:5105"
+      # [3rd Party IdP - Google]: credenciales fuera del repo (GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en un .env local).
+      # Vacías => el login con Google queda apagado y se usa el proveedor simulado.
+      Authentication__Google__ClientId: "${GOOGLE_CLIENT_ID:-}"
+      Authentication__Google__ClientSecret: "${GOOGLE_CLIENT_SECRET:-}"
     cpus: 1.0
     mem_limit: 256m
 
