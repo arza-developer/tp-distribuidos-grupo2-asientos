@@ -5,11 +5,11 @@
       Librería compartida de autenticación (AddJwtAuthentication, constantes Issuer/Audience): vive en
       src/Common/SeatsReservation.Auth, que llega con la rama feature/06-auth-server-m2m (o con develop ya actualizado).
     -->
-    <SharedAuthProject>..\..\..\..\..\Common\SeatsReservation.Auth\SeatsReservation.Auth.csproj</SharedAuthProject>
+    <SharedAuthProject>..\..\..\..\Common\SeatsReservation.Auth\SeatsReservation.Auth.csproj</SharedAuthProject>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\..\..\SeatsReservation.Observability\SeatsReservation.Observability.csproj" />
+    <ProjectReference Include="..\..\..\..\Common\SeatsReservation.Observability\SeatsReservation.Observability.csproj" />
     <ProjectReference Include="..\Availability.Application\Availability.Application.csproj" />
     <ProjectReference Include="..\Availability.Infrastructure\Availability.Infrastructure.csproj" />
     <ProjectReference Include="$(SharedAuthProject)" Condition="Exists('$(SharedAuthProject)')" />

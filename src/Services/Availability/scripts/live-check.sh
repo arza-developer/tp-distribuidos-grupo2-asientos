@@ -2,7 +2,7 @@
 # Verificación en vivo de Availability (escenarios feliz y de falla, req. 3.j) contra el docker compose del repo:
 # auth-server + external-idp + booking-api + availability, con el Service Bus real configurado en .env (SERVICEBUS_CONNECTION_STRING).
 #
-#   bash src/Services/Availability/Availability/scripts/live-check.sh
+#   bash src/Services/Availability/scripts/live-check.sh
 #
 # - Sin SERVICEBUS_CONNECTION_STRING válido corre solo los escenarios que no necesitan broker y lo informa.
 # - Nunca imprime el secreto. Al terminar baja SOLO los servicios que levantó y borra el volumen de Availability.

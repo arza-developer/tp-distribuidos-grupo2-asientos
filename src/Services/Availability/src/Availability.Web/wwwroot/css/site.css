@@ -85,6 +85,23 @@ input[type=text], input[type=password] {
     cursor: pointer;
 }
 
+.btn-google {
+    display: inline-flex;
+    align-items: center;
+    gap: .6rem;
+    padding-left: .45rem;
+}
+
+    .btn-google .google-logo {
+        width: 20px;
+        height: 20px;
+        padding: .2rem;
+        box-sizing: content-box;
+        object-fit: contain;
+        border-radius: 3px;
+        background: #fff;
+    }
+
 .muted {
     color: #6b7280;
 }

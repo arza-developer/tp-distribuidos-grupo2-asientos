@@ -18,6 +18,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Common\SeatsReservation.Contracts\SeatsReservation.Contracts.csproj" />
-	<ProjectReference Include="..\..\..\SeatsReservation.Observability\SeatsReservation.Observability.csproj" />
+	<ProjectReference Include="..\..\Common\SeatsReservation.Observability\SeatsReservation.Observability.csproj" />
   </ItemGroup>
 </Project>
