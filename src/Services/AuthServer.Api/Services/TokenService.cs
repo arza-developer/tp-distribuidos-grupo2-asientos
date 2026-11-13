@@ -1,5 +1,6 @@
 ﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using AuthServer.Api.Options;
 using Microsoft.Extensions.Options;
@@ -66,6 +67,27 @@ public sealed class TokenService
     // [3rd Party IdP]: busca qué usuario nuestro está vinculado a ese "sub" del proveedor externo.
     public DemoUser? FindUserByExternalSubject(string externalSubject) =>
         _registry.Users.FirstOrDefault(u => u.ExternalSubject == externalSubject);
+
+    // [3rd Party IdP - Google]: primero busca si la cuenta está vinculada en la lista (ExternalSubject = "google:<sub>").
+    // Si no, la registra sola con rol Client (auto-provisioning, como el ejemplo del docente con IdentityServer).
+    // El UserId sale del SHA256 de "google:<sub>": la misma cuenta de Google tiene siempre el mismo UserId,
+    // aunque el AuthServer se reinicie, sin necesidad de guardarla en ningún lado.
+    public DemoUser ResolveExternalUser(string provider, string providerSubject)
+    {
+        var externalSubject = $"{provider}:{providerSubject}";
+
+        var linked = FindUserByExternalSubject(externalSubject);
+        if (linked is not null) return linked;
+
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(externalSubject));
+        return new DemoUser
+        {
+            Username = externalSubject,
+            UserId = new Guid(hash.AsSpan(0, 16)).ToString(),
+            Role = "Client",
+            ExternalSubject = externalSubject
+        };
+    }
 
     // Arma el JWT. El rol viene de la lista, NUNCA de lo que mandó el que pide.
     public string CreateToken(string subject, string role)

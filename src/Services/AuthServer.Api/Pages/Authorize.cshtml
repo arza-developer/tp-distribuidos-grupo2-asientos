@@ -50,7 +50,21 @@
 
         <p style="text-align: center; color: #666;">o</p>
 
-        @* [3rd Party IdP]: como "Continue with Google". asp-page-handler="External" llama a OnPostExternal *@
+        @if (Model.GoogleEnabled)
+        {
+            @* [3rd Party IdP - Google real]: asp-page-handler="Google" llama a OnPostGoogle *@
+            <form method="post" asp-page-handler="Google" style="margin-bottom: 12px;">
+                <input type="hidden" name="response_type" value="@Model.ResponseType" />
+                <input type="hidden" name="client_id" value="@Model.ClientId" />
+                <input type="hidden" name="redirect_uri" value="@Model.RedirectUri" />
+                <input type="hidden" name="code_challenge" value="@Model.CodeChallenge" />
+                <input type="hidden" name="code_challenge_method" value="@Model.CodeChallengeMethod" />
+                <input type="hidden" name="state" value="@Model.State" />
+                <button type="submit">Continuar con Google</button>
+            </form>
+        }
+
+        @* [3rd Party IdP simulado]: respaldo para cuando no hay credenciales de Google. Llama a OnPostExternal *@
         <form method="post" asp-page-handler="External">
             <input type="hidden" name="response_type" value="@Model.ResponseType" />
             <input type="hidden" name="client_id" value="@Model.ClientId" />
@@ -58,7 +72,7 @@
             <input type="hidden" name="code_challenge" value="@Model.CodeChallenge" />
             <input type="hidden" name="code_challenge_method" value="@Model.CodeChallengeMethod" />
             <input type="hidden" name="state" value="@Model.State" />
-            <button type="submit">Ingresar con Proveedor Externo</button>
+            <button type="submit">Ingresar con Proveedor Externo (simulado)</button>
         </form>
     }
 </body>
