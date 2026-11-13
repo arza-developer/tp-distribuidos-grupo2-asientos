@@ -43,7 +43,7 @@ public class ExternalLoginTests : IClassFixture<AvailabilityApiFactory>
     {
         var html = await _factory.CreateBrowserClient().GetStringAsync("/Account/Login");
 
-        Assert.Contains("Ingresar con proveedor externo", html);
+        Assert.Contains("Ingresar con Google", html);
         Assert.Contains("action=\"/Account/LoginExternal\"", html);
         Assert.Contains("__RequestVerificationToken", html);
     }

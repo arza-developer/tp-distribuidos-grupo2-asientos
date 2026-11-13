@@ -20,6 +20,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="src/Services/Availability/tests/Availability.Tests/Availability.Tests.csproj" />
+	<Project Path="tests/Booking.Tests/Booking.Tests.csproj" Id="43ff5b80-881f-4bd2-a573-a0b27a431828" />
   </Folder>
-  <Project Path="Booking.Tests/Booking.Tests.csproj" Id="43ff5b80-881f-4bd2-a573-a0b27a431828" />
 </Solution>
