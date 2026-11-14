@@ -1,6 +1,6 @@
 # 📋 Especificación Técnica: Tarea 01
 **Rama Git:** `feature/01-availability-clean-arch`  
-**Módulo:** `src/Services/Availability/Availability/`
+**Módulo:** `src/Services/Availability`
 **Puerto:** `HTTP 5101`  
 
 ## 1. Alcance y Responsabilidad

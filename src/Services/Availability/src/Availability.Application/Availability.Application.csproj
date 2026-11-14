@@ -1,8 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\Availability.Domain\Availability.Domain.csproj" />
-    <ProjectReference Include="..\..\..\..\..\Common\SeatsReservation.Contracts\SeatsReservation.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\..\Common\SeatsReservation.Contracts\SeatsReservation.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

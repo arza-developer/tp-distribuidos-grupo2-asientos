@@ -4,14 +4,14 @@ WORKDIR /app
 
 # Copiar archivos de proyectos para restaurar dependencias (capa cacheable)
 COPY SeatsReservation.slnx ./
-COPY SeatsReservation.Observability/*.csproj ./SeatsReservation.Observability/
+COPY src/Common/SeatsReservation.Observability/*.csproj ./SeatsReservation.Observability/
 COPY src/Common/SeatsReservation.Contracts/*.csproj ./src/Common/SeatsReservation.Contracts/
 COPY src/Common/SeatsReservation.Auth/*.csproj ./src/Common/SeatsReservation.Auth/
 # Availability (solución Clean Architecture): el restore por ruta necesita los csproj referenciados en cadena
-COPY src/Services/Availability/Availability/src/Availability.Domain/*.csproj ./src/Services/Availability/Availability/src/Availability.Domain/
-COPY src/Services/Availability/Availability/src/Availability.Application/*.csproj ./src/Services/Availability/Availability/src/Availability.Application/
-COPY src/Services/Availability/Availability/src/Availability.Infrastructure/*.csproj ./src/Services/Availability/Availability/src/Availability.Infrastructure/
-COPY src/Services/Availability/Availability/src/Availability.Web/*.csproj ./src/Services/Availability/Availability/src/Availability.Web/
+COPY src/Services/Availability/src/Availability.Domain/*.csproj ./src/Services/Availability/src/Availability.Domain/
+COPY src/Services/Availability/src/Availability.Application/*.csproj ./src/Services/Availability/src/Availability.Application/
+COPY src/Services/Availability/src/Availability.Infrastructure/*.csproj ./src/Services/Availability/src/Availability.Infrastructure/
+COPY src/Services/Availability/src/Availability.Web/*.csproj ./src/Services/Availability/src/Availability.Web/
 COPY src/Services/Booking.Api/*.csproj ./src/Services/Booking.Api/
 COPY src/Services/Payment.Grpc/*.csproj ./src/Services/Payment.Grpc/
 COPY src/Services/AuthServer.Api/*.csproj ./src/Services/AuthServer.Api/

@@ -2,7 +2,7 @@
   <Folder Name="/src/" />
   <Folder Name="/src/Common/">
     <Project Path="src/Common/SeatsReservation.Auth/SeatsReservation.Auth.csproj" Id="f58733f9-3ee5-4408-b6fd-de7aa1e1c1cb" />
-    <Project Path="SeatsReservation.Observability/SeatsReservation.Observability.csproj" Id="945a77b7-3b86-47c6-a8b5-38e40abb0fc2" />
+    <Project Path="src/Common/SeatsReservation.Observability/SeatsReservation.Observability.csproj" Id="945a77b7-3b86-47c6-a8b5-38e40abb0fc2" />
     <Project Path="src/Common/SeatsReservation.Contracts/SeatsReservation.Contracts.csproj" />
   </Folder>
   <Folder Name="/src/Services/">
@@ -13,13 +13,13 @@
     <Project Path="src/Services/Payment.Grpc/Payment.Grpc.csproj" />
   </Folder>
   <Folder Name="/src/Services/Availability/">
-    <Project Path="src/Services/Availability/Availability/src/Availability.Domain/Availability.Domain.csproj" />
-    <Project Path="src/Services/Availability/Availability/src/Availability.Application/Availability.Application.csproj" />
-    <Project Path="src/Services/Availability/Availability/src/Availability.Infrastructure/Availability.Infrastructure.csproj" />
-    <Project Path="src/Services/Availability/Availability/src/Availability.Web/Availability.Web.csproj" />
+    <Project Path="src/Services/Availability/src/Availability.Domain/Availability.Domain.csproj" />
+    <Project Path="src/Services/Availability/src/Availability.Application/Availability.Application.csproj" />
+    <Project Path="src/Services/Availability/src/Availability.Infrastructure/Availability.Infrastructure.csproj" />
+    <Project Path="src/Services/Availability/src/Availability.Web/Availability.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="src/Services/Availability/Availability/tests/Availability.Tests/Availability.Tests.csproj" />
+    <Project Path="src/Services/Availability/tests/Availability.Tests/Availability.Tests.csproj" />
+	<Project Path="tests/Booking.Tests/Booking.Tests.csproj" Id="43ff5b80-881f-4bd2-a573-a0b27a431828" />
   </Folder>
-  <Project Path="Booking.Tests/Booking.Tests.csproj" Id="43ff5b80-881f-4bd2-a573-a0b27a431828" />
 </Solution>
