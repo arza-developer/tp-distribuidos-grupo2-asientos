@@ -7,6 +7,12 @@
 x-jwt-env: &jwt-env
   Jwt__Key: "SeatsReservation-Dev-Key-Change-Me-Min-32-Bytes!!"
 
+# [Broker]: connection string del EMULADOR local de Azure Service Bus (servicio "servicebus-emulator" de este compose).
+# La clave es la constante pública del emulador (no es un secreto). Desde el host (dotnet run) usar el mismo valor con
+# "Endpoint=sb://localhost;...". Los topics y suscripciones los crea servicebus-emulator/Config.json.
+x-servicebus-env: &servicebus-env
+  ServiceBus__ConnectionString: "Endpoint=sb://servicebus-emulator;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+
 services:
 
   # 1. Emulador local de colas Azure Storage Queues (LocalStack de Azure / Sin costo en nube)
@@ -37,8 +43,8 @@ services:
       ExternalIdp__Authority: "http://external-idp:5105"
       # [3rd Party IdP - Google]: credenciales fuera del repo (GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en un .env local).
       # Vacías => el login con Google queda apagado y se usa el proveedor simulado.
-      Authentication__Google__ClientId: "${GOOGLE_CLIENT_ID:-}"
-      Authentication__Google__ClientSecret: "${GOOGLE_CLIENT_SECRET:-}"
+      Authentication__Google__ClientId: "${GOOGLE_CLIENT_ID}"
+      Authentication__Google__ClientSecret: "${GOOGLE_CLIENT_SECRET}"
     cpus: 1.0
     mem_limit: 256m
 
@@ -54,7 +60,7 @@ services:
     ports:
       - "5101:5101"
     environment:
-      <<: *jwt-env
+      <<: [*jwt-env, *servicebus-env] # JWT compartido + broker (emulador local: publica en grupo2-booking-topic)
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_HTTP_PORTS: "5101"
       # [Req. 3.e]: token M2M para consultar a Booking (credenciales de desarrollo, igual que en el AuthServer)
@@ -65,15 +71,13 @@ services:
       # el canje del código usa la interna (BaseUrl). La vuelta debe coincidir con las RedirectUris del cliente "frontend".
       AuthServer__PublicUrl: "http://localhost:5104"
       AuthServer__FrontendRedirectUri: "http://localhost:5101/Account/Callback"
-      # [Broker]: Booking consume el topic de Azure Service Bus del docente. El secreto NO se versiona:
-      # definir SERVICEBUS_CONNECTION_STRING en el entorno o en un .env local. Vacío => POST /api/reservations responde 503.
-      ServiceBus__ConnectionString: "${SERVICEBUS_CONNECTION_STRING}"
       ConnectionStrings__Availability: "Data Source=/data/availability.db"
     volumes:
       - availability-data:/data
     depends_on:
       - auth-server
       - booking-api
+      - servicebus-emulator
       - external-idp # el Auth Server federa el login con el IdP externo (Fase 8)
     # [Decisión]: 2.0 CPUs para garantizar paralelismo real en el ThreadPool bajo concurrencia
     cpus: 2.0
@@ -88,12 +92,13 @@ services:
     ports:
       - "5102:5102"
     environment:
-      <<: *jwt-env
+      <<: [*jwt-env, *servicebus-env] # JWT compartido + broker (emulador local: consume la suscripción "booking")
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_HTTP_PORTS: "5102"
-      ServiceBus__ConnectionString: "${SERVICEBUS_CONNECTION_STRING}"
       Services__PaymentGrpc: "http://seats-payment-grpc:5103"
       AuthServer__AuthenticationEndpoint: "http://auth-server:5104/connect/token"
+    depends_on:
+      - servicebus-emulator
     # [Decisión]: 2.0 CPUs para simular condiciones de carrera en acceso concurrente a asientos
     cpus: 2.0
     mem_limit: 512m
@@ -142,6 +147,32 @@ services:
       ASPNETCORE_HTTP_PORTS: "5105"
     cpus: 0.5
     mem_limit: 256m
+
+  # 8. Emulador local de Azure Service Bus (reemplaza al namespace de Azure). Crea los topics y suscripciones de
+  # servicebus-emulator/Config.json (hoy: topic grupo2-booking-topic, suscripción booking). Requiere SQL Server como almacén.
+  servicebus-emulator:
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+    container_name: servicebus-emulator
+    ports:
+      - "5672:5672" # AMQP (connection string: Endpoint=sb://localhost;...;UseDevelopmentEmulator=true;)
+      - "5300:5300" # health/administración del emulador
+    volumes:
+      - ./servicebus-emulator/Config.json:/ServiceBus_Emulator/ConfigFiles/Config.json
+    environment:
+      ACCEPT_EULA: "Y"
+      SQL_SERVER: "servicebus-sql"
+      MSSQL_SA_PASSWORD: "SeatsEmulator-Dev-Passw0rd!"
+    depends_on:
+      - servicebus-sql
+    mem_limit: 1g
+
+  servicebus-sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: servicebus-sql
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "SeatsEmulator-Dev-Passw0rd!"
+    mem_limit: 2g
 
 # Persistencia SQLite de Availability (sobrevive a recrear el contenedor)
 volumes:
