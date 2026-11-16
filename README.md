@@ -51,3 +51,19 @@ npx httpyac tests/api-tests.http --all
 ## 📚 Documentación Institucional
 
 - [Tabla de Interpretación de Componentes (Punto 1 y 3.h)](docs/tabla_componentes.md)
+
+## Ejecución Local con Emulador de Azure Service Bus
+
+```bash
+docker compose down -v && docker compose up -d
+
+SECONDS=0
+until docker logs servicebus-emulator 2>&1 | grep -q 'Successfully Up'; do
+  echo "Esperando inicialización del emulador... (${SECONDS}s)"
+  sleep 2
+done
+echo "¡El emulador está listo! Ya se pueden ejecutar las pruebas."
+
+# Ejecutar tests de contrato
+npx httpyac tests/api-tests.http --all
+```

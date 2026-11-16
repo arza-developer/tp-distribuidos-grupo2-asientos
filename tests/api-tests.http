@@ -141,7 +141,7 @@ Authorization: Bearer {{authToken}}
 Accept: application/json
 
 ?? status == 200
-?? js response.parsedBody.status == Rejected
+?? js response.parsedBody.status == Retained
 
 ### ==================================================================
 ### 10. Volver a prender Payment
