@@ -11,7 +11,7 @@
         "Action": "Start"
       },
       {
-        "Path": "src\\Services\\Availability\\Availability\\src\\Availability.Web\\Availability.Web.csproj",
+        "Path": "src\\Services\\Availability\\src\\Availability.Web\\Availability.Web.csproj",
         "Action": "Start"
       },
       {
